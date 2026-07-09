@@ -1,5 +1,5 @@
 import Image from "next/image";
-import { Check, ArrowRight, MapPin, ArrowDown } from "lucide-react";
+import { Check, ArrowRight, MapPin } from "lucide-react";
 import Reveal from "./ui/Reveal";
 import HeroAerialCanvas from "./HeroAerialCanvas";
 import { HERO_PROOF, PLOTS } from "@/config/site";
@@ -26,14 +26,15 @@ export default function Hero() {
       {/* WebGL-Ebene: Luftbild mit dezentem Vermessungs-Scan-Shader */}
       <HeroAerialCanvas src="/img/hero-aerial.jpg" className="z-[1]" />
 
-      {/* Overlays für Lesbarkeit + Markenstimmung (über dem Canvas) */}
-      <div className="absolute inset-0 z-[2] bg-gradient-to-t from-night via-night/55 to-night/25" />
-      <div className="absolute inset-0 z-[2] bg-gradient-to-r from-night/85 via-night/35 to-transparent" />
+      {/* Overlays für Lesbarkeit: nur dort abdunkeln, wo Text steht.
+          Das Luftbild muss tragen, keine dunkle Wand. */}
+      <div className="absolute inset-0 z-[2] bg-gradient-to-t from-night via-night/25 to-transparent" />
+      <div className="absolute inset-0 z-[2] bg-gradient-to-r from-night/70 via-night/15 to-transparent" />
       <div
-        className="absolute inset-0 z-[2] opacity-40 mix-blend-multiply"
+        className="absolute inset-0 z-[2] opacity-25 mix-blend-multiply"
         style={{
           background:
-            "radial-gradient(120% 80% at 15% 90%, rgba(110,19,25,0.65), transparent 60%)",
+            "radial-gradient(120% 80% at 15% 90%, rgba(110,19,25,0.6), transparent 60%)",
         }}
       />
 
@@ -52,7 +53,7 @@ export default function Hero() {
             </Reveal>
 
             <Reveal delay={0.1}>
-              <h1 className="mt-6 max-w-4xl text-balance font-[family-name:var(--font-display)] text-[2.7rem] font-bold leading-[1.02] text-paper sm:text-6xl md:text-[4.6rem]">
+              <h1 className="mt-6 max-w-4xl text-balance font-[family-name:var(--font-display)] text-[2.85rem] font-bold leading-[0.98] tracking-tight text-paper drop-shadow-[0_2px_24px_rgba(0,0,0,0.55)] sm:text-6xl md:text-[5.1rem]">
                 Ihr nächster Standort.
                 <br />
                 <span className="text-gold">Schon erschlossen.</span>
@@ -135,11 +136,13 @@ export default function Hero() {
           </div>
         </div>
 
-        {/* Scroll-Hinweis */}
+        {/* Scroll-Hinweis: ruhige Goldlinie statt hüpfendem Pfeil */}
         <Reveal delay={0.7}>
-          <div className="mt-12 hidden items-center gap-2 text-xs uppercase tracking-[0.2em] text-paper/50 md:flex">
-            <ArrowDown className="h-4 w-4 animate-bounce" />
-            Mehr entdecken
+          <div className="mt-12 hidden items-center gap-3 md:flex">
+            <span className="h-10 w-px bg-gradient-to-b from-gold/0 via-gold/80 to-gold/0" />
+            <span className="text-xs uppercase tracking-[0.22em] text-paper/50">
+              Scrollen
+            </span>
           </div>
         </Reveal>
       </div>

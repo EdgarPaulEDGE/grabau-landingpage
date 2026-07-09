@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import ScrollProgress from "@/components/ui/ScrollProgress";
-import CustomCursor from "@/components/ui/CustomCursor";
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://gewerbepark-grabau.de"),
@@ -51,9 +50,8 @@ export default function RootLayout({
       </head>
       <body>
         {children}
-        {/* Globale Polish-Ebene: Fortschrittslinie, Cursor-Begleiter, Filmkorn */}
+        {/* Globale Polish-Ebene: Fortschrittslinie, Filmkorn */}
         <ScrollProgress />
-        <CustomCursor />
         <div
           aria-hidden="true"
           className="grain pointer-events-none fixed inset-0 z-[34]"
