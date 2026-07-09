@@ -1,0 +1,26 @@
+# dependencies
+/node_modules
+/.pnp
+.pnp.*
+
+# next.js
+/.next/
+/out/
+
+# production
+/build
+
+# rohdaten / arbeitsdateien
+/_assets_raw
+
+# lokale leads (fallback-speicher)
+/data/leads.jsonl
+
+# env
+.env*.local
+
+# misc
+.DS_Store
+*.pem
+npm-debug.log*
+next-env.d.ts
