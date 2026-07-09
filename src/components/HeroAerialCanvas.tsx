@@ -86,6 +86,15 @@ void main() {
 
   vec3 col = texture2D(uTexture, cuv).rgb;
 
+  // Filmischer Warm-Grade: entsaettigt das stumpfe Wiesengruen leicht,
+  // waermt die Mitteltoene und vergoldet die Lichter. So passt das Foto
+  // in die Weinrot-Gold-Markenwelt statt sich mit ihr zu beissen.
+  float lg = luma(col);
+  col = mix(vec3(lg), col, 0.78);
+  col *= vec3(1.08, 1.0, 0.88);
+  col += uGold * lg * lg * 0.12;
+  col *= 1.08;
+
   // (b) Goldener Vermessungs-Scan: weicher diagonaler Streifen wandert langsam.
   // Bei reduzierter Bewegung steht der Scan statisch in der Mitte.
   float diag = (vUv.x + vUv.y) * 0.5;
@@ -110,8 +119,8 @@ void main() {
   // (d) Dezente Vignette plus staerkere Abdunklung unten fuer Textlesbarkeit
   vec2 vc = vUv - 0.5;
   float vig = 1.0 - smoothstep(0.35, 0.95, length(vc));
-  col *= mix(0.82, 1.0, vig);
-  float bottomShade = (1.0 - smoothstep(0.0, 0.45, vUv.y)) * 0.22;
+  col *= mix(0.9, 1.0, vig);
+  float bottomShade = (1.0 - smoothstep(0.0, 0.45, vUv.y)) * 0.12;
   col *= 1.0 - bottomShade;
 
   gl_FragColor = vec4(col, 1.0);
