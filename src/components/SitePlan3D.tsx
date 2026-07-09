@@ -29,7 +29,7 @@ interface SitePlan3DProps {
 /* Reine Farb- und Datenkonstanten. Kein DOM-, window- oder Renderer-Zugriff auf Modulebene. */
 const FARBE_GOLD = 0xc5a572;
 const FARBE_BODEN = 0x201518;
-const FARBE_BUSCH = 0x22331f;
+const FARBE_BUSCH = 0x1e2a1b;
 
 interface StatusKonfig {
   basis: number;
@@ -40,11 +40,13 @@ interface StatusKonfig {
   kanten: boolean;
 }
 
-/** Material- und Formparameter je Status */
+/** Material- und Formparameter je Status.
+    Bewusst entsaettigte Architekturmodell-Toene: der Status bleibt lesbar,
+    aber die Koerper wirken wie ein Modell, nicht wie Spielsteine. */
 const STATUS_KONFIG: Record<SitePlan3DStatus, StatusKonfig> = {
-  verfuegbar: { basis: 0x2e5b39, emissiv: 0x4f8a5b, emissivIntensitaet: 0.35, hoehe: 0.55, badgeFarbe: "#4F8A5B", kanten: true },
-  reserviert: { basis: 0x6e5320, emissiv: 0xc0912f, emissivIntensitaet: 0.3, hoehe: 0.4, badgeFarbe: "#C0912F", kanten: true },
-  verkauft: { basis: 0x3a3331, emissiv: 0x241d1b, emissivIntensitaet: 0.08, hoehe: 0.22, badgeFarbe: "#A4938D", kanten: false },
+  verfuegbar: { basis: 0x44524a, emissiv: 0x4f8a5b, emissivIntensitaet: 0.08, hoehe: 0.55, badgeFarbe: "#4F8A5B", kanten: true },
+  reserviert: { basis: 0x594e36, emissiv: 0xc0912f, emissivIntensitaet: 0.11, hoehe: 0.4, badgeFarbe: "#C0912F", kanten: true },
+  verkauft: { basis: 0x2e2a29, emissiv: 0x241d1b, emissivIntensitaet: 0.04, hoehe: 0.22, badgeFarbe: "#A4938D", kanten: false },
 };
 
 /** Prozentkoordinaten des Lageplans in Weltkoordinaten umrechnen. Boden liegt in XZ, Y ist Hoehe. */
@@ -182,6 +184,12 @@ export default function SitePlan3D({
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.75));
     renderer.setClearColor(0x000000, 0);
+    // Filmisches Tone-Mapping + weiche Schatten: der Unterschied zwischen
+    // "Spielbrett" und Architekturmodell
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.18;
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
     const canvas = renderer.domElement;
     canvas.style.position = "absolute";
@@ -229,15 +237,29 @@ export default function SitePlan3D({
     kamera.lookAt(kameraZiel);
     renderer.setSize(startBreite, startHoehe, false);
 
-    // Licht: warmes Ambient, warmweisses Hauptlicht von schraeg oben, goldener Akzent ueber dem Zentrum
-    const ambient = new THREE.AmbientLight(0xffe3c4, 0.5);
+    // Licht: warmes Ambient, schattenwerfende Sonne von schraeg oben,
+    // dezenter goldener Akzent. Die weichen Schatten verankern die Koerper
+    // auf der Platte, statt sie schweben zu lassen.
+    const ambient = new THREE.AmbientLight(0xffe3c4, 0.55);
     szene.add(ambient);
-    const sonne = new THREE.DirectionalLight(0xfff0dc, 1.25);
-    sonne.position.set(7, 14, 6);
+    const sonne = new THREE.DirectionalLight(0xfff0dc, 1.35);
+    sonne.position.set(9, 15, 7);
+    sonne.castShadow = true;
+    sonne.shadow.mapSize.set(2048, 2048);
+    sonne.shadow.camera.left = -16;
+    sonne.shadow.camera.right = 16;
+    sonne.shadow.camera.top = 12;
+    sonne.shadow.camera.bottom = -12;
+    sonne.shadow.camera.near = 2;
+    sonne.shadow.camera.far = 45;
+    sonne.shadow.bias = -0.0004;
     szene.add(sonne);
-    const goldLicht = new THREE.PointLight(FARBE_GOLD, 20, 30, 2);
+    const goldLicht = new THREE.PointLight(FARBE_GOLD, 8, 30, 2);
     goldLicht.position.set(0, 6.5, 0.5);
     szene.add(goldLicht);
+
+    // Leichter Tiefen-Nebel Richtung Sektionshintergrund
+    szene.fog = new THREE.Fog(0x1a1113, 24, 46);
 
     // Boden: flaches Plateau als extrudiertes, abgerundetes Rechteck, Oberkante bei y = 0
     const plateauForm = abgerundetesRechteck(26, 14, 1.1);
@@ -257,6 +279,7 @@ export default function SitePlan3D({
       new THREE.MeshStandardMaterial({ color: FARBE_BODEN, roughness: 0.95, metalness: 0.05 })
     );
     const plateau = new THREE.Mesh(plateauGeo, plateauMat);
+    plateau.receiveShadow = true;
     szene.add(plateau);
 
     // Sehr feines goldenes Vermessungsraster als prozeduraler Grid-Shader auf einer zweiten Ebene.
@@ -285,7 +308,7 @@ export default function SitePlan3D({
             float linie = 1.0 - smoothstep(0.0, 0.05, naehe);
             vec2 rand = smoothstep(0.0, 0.06, vUv) * smoothstep(0.0, 0.06, 1.0 - vUv);
             float maske = rand.x * rand.y;
-            gl_FragColor = vec4(uFarbe, linie * 0.075 * maske);
+            gl_FragColor = vec4(uFarbe, linie * 0.04 * maske);
           }
         `,
       })
@@ -299,7 +322,7 @@ export default function SitePlan3D({
       new THREE.MeshBasicMaterial({
         color: FARBE_GOLD,
         transparent: true,
-        opacity: 0.35,
+        opacity: 0.16,
         blending: THREE.AdditiveBlending,
         depthWrite: false,
       })
@@ -541,8 +564,8 @@ export default function SitePlan3D({
           color: konfig.basis,
           emissive: konfig.emissiv,
           emissiveIntensity: konfig.emissivIntensitaet,
-          roughness: plot.status === "verkauft" ? 0.9 : 0.55,
-          metalness: 0.12,
+          roughness: plot.status === "verkauft" ? 0.92 : 0.8,
+          metalness: 0.02,
           transparent: true,
           opacity: 1,
         })
@@ -553,6 +576,8 @@ export default function SitePlan3D({
       gruppe.rotation.y = -0.72;
 
       const mesh = new THREE.Mesh(geo, mat);
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
       gruppe.add(mesh);
 
       // Goldene Kanten nur auf verfuegbaren und reservierten Parzellen
