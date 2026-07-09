@@ -1,0 +1,259 @@
+@import "maplibre-gl/dist/maplibre-gl.css";
+@import "tailwindcss";
+
+/* ======================================================================
+   WFL Gewerbepark Grabau · Landing Page
+   Design-Sprache: modern, industriell-premium, keine Serifen
+   Museo Sans Rounded (Headlines + Labels, WFL-Logo-Schrift) + Fira Sans (Body)
+   Weinrot #971B22 / Gold #C5A572 auf warmem Papierweiss
+   ====================================================================== */
+
+/* ---------- Fira Sans (Body / UI) ---------- */
+@font-face {
+  font-family: "Fira Sans";
+  src: url("/fonts/FiraSans-Regular.ttf") format("truetype");
+  font-weight: 400; font-style: normal; font-display: swap;
+}
+@font-face {
+  font-family: "Fira Sans";
+  src: url("/fonts/FiraSans-Medium.ttf") format("truetype");
+  font-weight: 500; font-style: normal; font-display: swap;
+}
+@font-face {
+  font-family: "Fira Sans";
+  src: url("/fonts/FiraSans-SemiBold.ttf") format("truetype");
+  font-weight: 600; font-style: normal; font-display: swap;
+}
+@font-face {
+  font-family: "Fira Sans";
+  src: url("/fonts/FiraSans-Bold.ttf") format("truetype");
+  font-weight: 700; font-style: normal; font-display: swap;
+}
+
+/* ---------- Museo Sans Rounded (Labels / Eyebrows · Logo-Feel) ---------- */
+@font-face {
+  font-family: "Museo Sans Rounded";
+  src: url("/fonts/MuseoSansRounded-500.otf") format("opentype");
+  font-weight: 500; font-style: normal; font-display: swap;
+}
+@font-face {
+  font-family: "Museo Sans Rounded";
+  src: url("/fonts/MuseoSansRounded-700.otf") format("opentype");
+  font-weight: 700; font-style: normal; font-display: swap;
+}
+@font-face {
+  font-family: "Museo Sans Rounded";
+  src: url("/fonts/MuseoSansRounded-900.otf") format("opentype");
+  font-weight: 900; font-style: normal; font-display: swap;
+}
+
+/* ---------- Design-Tokens (Tailwind v4 @theme) ---------- */
+@theme {
+  --color-paper: #faf8f6;
+  --color-paper-2: #f4ece1;
+  --color-ink: #241a1b;
+  --color-muted: #7a6e6f;
+  --color-hair: #e7ddd6;
+  --color-hair-strong: #d8ccc3;
+
+  --color-wine: #971b22;
+  --color-wine-light: #b94049;
+  --color-wine-dark: #6e1319;
+
+  --color-gold: #c5a572;
+  --color-gold-deep: #a5803f;
+
+  --color-night: #1a1113;
+  --color-night-2: #251719;
+
+  /* Status Standortplan */
+  --color-avail: #4f8a5b;
+  --color-reserved: #c0912f;
+  --color-sold: #a4938d;
+
+  --font-display: "Museo Sans Rounded", "Fira Sans", Helvetica, Arial, sans-serif;
+  --font-body: "Fira Sans", "Helvetica Neue", Helvetica, Arial, sans-serif;
+  --font-rounded: "Museo Sans Rounded", "Fira Sans", sans-serif;
+}
+
+/* ---------- Basis ---------- */
+* {
+  border-color: var(--color-hair);
+}
+
+html {
+  scroll-behavior: smooth;
+  scroll-padding-top: 84px; /* Platz fuer sticky Header bei Anker-Sprung */
+}
+
+body {
+  font-family: var(--font-body);
+  background-color: var(--color-paper);
+  color: var(--color-ink);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Horizontales Überlaufen verhindern, OHNE den body zum Scroll-Container zu
+   machen. `clip` auf html vermeidet die overflow-y:auto-Promotion, die bei
+   overflow-x:hidden am body passiert (und window.scroll bricht). */
+html {
+  overflow-x: clip;
+}
+
+h1, h2, h3, h4 {
+  font-family: var(--font-display);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+::selection {
+  background-color: var(--color-wine);
+  color: #fff;
+}
+
+/* Feine Papier-Koernung fuer Atmosphaere (dezent) */
+.grain::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 1;
+  opacity: 0.04;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+/* ---------- Wiederverwendbare Helfer ---------- */
+.eyebrow {
+  font-family: var(--font-rounded);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.22em;
+  font-size: 0.72rem;
+}
+
+.hairline {
+  height: 1px;
+  background: linear-gradient(
+    to right,
+    transparent,
+    var(--color-gold),
+    transparent
+  );
+}
+
+/* Nummern / Kennzahlen: geometrische Museo-Ziffern, eng gesetzt */
+.numeral {
+  font-family: var(--font-display);
+  font-feature-settings: "lnum" 1;
+  letter-spacing: -0.03em;
+}
+
+/* Sanftes Einblenden per reiner CSS-Animation.
+   Zeitbasiert, mit fill-mode "both": haelt den sichtbaren Endzustand und
+   funktioniert auch ohne JavaScript (kein requestAnimationFrame noetig). */
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(18px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.reveal {
+  opacity: 0;
+  animation: fadeUp 0.7s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* Langsamer Ken-Burns-Zoom fuers Hero-Luftbild */
+@keyframes kenburns {
+  from { transform: scale(1.06); }
+  to { transform: scale(1.14); }
+}
+.kenburns {
+  animation: kenburns 24s ease-out forwards;
+}
+
+/* Laufband (Marquee) fuer Vertrauensleiste */
+@keyframes marquee {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+.marquee-track {
+  animation: marquee 32s linear infinite;
+}
+
+/* ---------- Korridor-Karte (MapLibre): Marker & Attribution ---------- */
+/* WICHTIG: kein eigenes position auf .km-marker! MapLibre positioniert
+   Marker absolut per Inline-Transform; ein Override zerschiebt sie. */
+.km-marker {
+  pointer-events: none;
+}
+.km-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 9999px;
+  background: #f5efe4;
+  box-shadow: 0 0 10px rgba(245, 239, 228, 0.8);
+}
+.km-label {
+  position: absolute;
+  left: 15px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-family: var(--font-rounded);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  color: rgba(250, 248, 246, 0.88);
+  text-shadow: 0 1px 8px rgba(0, 0, 0, 0.95);
+  white-space: nowrap;
+}
+.km-marker--hh .km-dot {
+  background: #d96a73;
+  box-shadow: 0 0 12px rgba(151, 27, 34, 0.85);
+}
+.km-marker--grabau .km-dot {
+  width: 14px;
+  height: 14px;
+  background: #e9d4a8;
+  box-shadow: 0 0 18px rgba(197, 165, 114, 0.95);
+}
+.km-marker--grabau .km-label {
+  left: 50%;
+  top: auto;
+  bottom: 16px;
+  transform: translateX(-50%);
+  color: #e9d4a8;
+  font-size: 13px;
+}
+.km-marker--grabau::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 14px;
+  height: 14px;
+  border-radius: 9999px;
+  border: 2px solid rgba(197, 165, 114, 0.8);
+  transform: translate(-50%, -50%);
+  animation: kmPulse 2.6s ease-out infinite;
+}
+@keyframes kmPulse {
+  from { transform: translate(-50%, -50%) scale(1); opacity: 0.9; }
+  to { transform: translate(-50%, -50%) scale(3.4); opacity: 0; }
+}
+
+/* Attribution dezent einbetten (Pflicht: OpenStreetMap-Nennung bleibt lesbar) */
+.maplibregl-ctrl-attrib {
+  background: rgba(20, 14, 16, 0.55) !important;
+  font-size: 10px;
+}
+.maplibregl-ctrl-attrib,
+.maplibregl-ctrl-attrib a {
+  color: rgba(250, 248, 246, 0.5) !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  .kenburns, .marquee-track { animation: none; }
+  /* Reveal ohne Animation: sofort sichtbar */
+  .reveal { animation: none; opacity: 1; }
+  .km-marker--grabau::before { animation: none; opacity: 0.5; }
+}
