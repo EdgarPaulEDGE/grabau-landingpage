@@ -240,6 +240,72 @@ h1, h2, h3, h4 {
   to { transform: translate(-50%, -50%) scale(3.4); opacity: 0; }
 }
 
+/* ---------- Standortplan: aufpoppende Info-Karte ---------- */
+.sp-anker {
+  position: absolute;
+  left: 0;
+  top: 0;
+  will-change: transform;
+}
+.sp-aufbau {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+}
+/* Goldene Leader-Linie: wächst aus der Parzelle nach oben */
+.sp-leader {
+  position: absolute;
+  bottom: 0;
+  left: -1px;
+  width: 2px;
+  height: 58px;
+  background: linear-gradient(to top, rgba(197, 165, 114, 0.15), #c5a572);
+  transform-origin: bottom;
+  animation: spLeader 0.3s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+/* Info-Karte: ploppt mit leichtem Überschwinger auf */
+.sp-card {
+  position: absolute;
+  bottom: 58px;
+  left: -14px;
+  width: 232px;
+  padding: 14px 16px 16px;
+  border-radius: 14px;
+  border: 1px solid rgba(197, 165, 114, 0.35);
+  background: rgba(17, 11, 13, 0.85);
+  backdrop-filter: blur(10px);
+  box-shadow: 0 18px 50px -18px rgba(0, 0, 0, 0.9);
+  transform-origin: bottom left;
+  animation: spPop 0.55s cubic-bezier(0.18, 1.4, 0.3, 1) 0.14s both;
+}
+.sp-flip .sp-card {
+  left: auto;
+  right: -14px;
+  transform-origin: bottom right;
+}
+/* Inhalt staffelt sich zeilenweise ein */
+.sp-row {
+  opacity: 0;
+  animation: spRow 0.4s ease both;
+}
+.sp-card .sp-row:nth-child(1) { animation-delay: 0.3s; }
+.sp-card .sp-row:nth-child(2) { animation-delay: 0.38s; }
+.sp-card .sp-row:nth-child(3) { animation-delay: 0.46s; }
+.sp-card .sp-row:nth-child(4) { animation-delay: 0.54s; }
+@keyframes spLeader {
+  from { transform: scaleY(0); }
+  to { transform: scaleY(1); }
+}
+@keyframes spPop {
+  0% { opacity: 0; transform: scale(0.5) translateY(16px); }
+  62% { opacity: 1; transform: scale(1.05) translateY(-3px); }
+  100% { opacity: 1; transform: scale(1) translateY(0); }
+}
+@keyframes spRow {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
+}
+
 /* Attribution dezent einbetten (Pflicht: OpenStreetMap-Nennung bleibt lesbar) */
 .maplibregl-ctrl-attrib {
   background: rgba(20, 14, 16, 0.55) !important;
@@ -256,4 +322,5 @@ h1, h2, h3, h4 {
   /* Reveal ohne Animation: sofort sichtbar */
   .reveal { animation: none; opacity: 1; }
   .km-marker--grabau::before { animation: none; opacity: 0.5; }
+  .sp-leader, .sp-card, .sp-row { animation: none; opacity: 1; transform: none; }
 }

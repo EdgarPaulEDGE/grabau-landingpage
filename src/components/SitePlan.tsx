@@ -158,6 +158,10 @@ export default function SitePlan() {
                     filter={filter}
                     onSelect={setSelected}
                     onHover={setHovered}
+                    onRequest={(id) => {
+                      const plot = PLOTS.find((p) => p.id === id);
+                      if (plot) requestPlot(plot);
+                    }}
                   />
                 </div>
               ) : (

@@ -23,8 +23,17 @@ interface SitePlan3DProps {
   filter: "alle" | SitePlan3DStatus;
   onSelect: (id: string) => void;
   onHover?: (id: string | null) => void;
+  /** Wird vom Anfrage-Button der aufpoppenden Info-Karte aufgerufen */
+  onRequest?: (id: string) => void;
   className?: string;
 }
+
+/** Anzeige-Texte und Farben der Popup-Karte je Status */
+const STATUS_TEXT: Record<SitePlan3DStatus, { label: string; farbe: string }> = {
+  verfuegbar: { label: "Verfügbar", farbe: "#5FA86D" },
+  reserviert: { label: "Reserviert", farbe: "#C0912F" },
+  verkauft: { label: "Verkauft", farbe: "#A4938D" },
+};
 
 /* Reine Farb- und Datenkonstanten. Kein DOM-, window- oder Renderer-Zugriff auf Modulebene. */
 const FARBE_GOLD = 0xc5a572;
@@ -127,9 +136,12 @@ export default function SitePlan3D({
   filter,
   onSelect,
   onHover,
+  onRequest,
   className,
 }: SitePlan3DProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
+  // Anker des Info-Overlays: wird im Loop per Bildschirmprojektion bewegt
+  const ankerRef = useRef<HTMLDivElement | null>(null);
 
   // Laufzeit-Props als Refs, damit der Loop immer die aktuellen Werte liest
   const selectedRef = useRef<string | null>(selectedId);
@@ -638,6 +650,24 @@ export default function SitePlan3D({
     auswahlRing.visible = false;
     szene.add(auswahlRing);
 
+    // Einmalige Schockwelle beim Auswahlwechsel: expandierender, verblassender Ring
+    const welleGeo = merkeGeo(new THREE.RingGeometry(0.94, 1.0, 64));
+    welleGeo.rotateX(-Math.PI / 2);
+    const welleMat = merkeMat(
+      new THREE.MeshBasicMaterial({
+        color: FARBE_GOLD,
+        transparent: true,
+        opacity: 0,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+        side: THREE.DoubleSide,
+      })
+    );
+    const welle = new THREE.Mesh(welleGeo, welleMat);
+    welle.position.y = 0.03;
+    welle.visible = false;
+    szene.add(welle);
+
     // Interaktions- und Kamerazustand (nur Closure-Variablen, kein React-State im Loop)
     const raycaster = new THREE.Raycaster();
     const zeigerNdc = new THREE.Vector2();
@@ -664,6 +694,11 @@ export default function SitePlan3D({
     let rafId = 0;
     let vorherigeZeit = 0;
     let imSichtfeld = false;
+    // Zustand der Schockwelle und der Overlay-Projektion
+    let letzteAuswahlId: string | null = selectedRef.current;
+    let welleZeit = -1;
+    let welleBasis = 1;
+    const projektion = new THREE.Vector3();
 
     // Eintrittsanimation: bei verstecktem Tab oder reduced-motion sofort voll ausgewachsen
     let wachstumZeit = document.hidden || reduzierteBewegung ? 99 : 0;
@@ -778,6 +813,36 @@ export default function SitePlan3D({
         auswahlRing.visible = false;
       }
 
+      // Schockwelle: beim Auswahlwechsel einmal ausloesen, dann expandieren
+      if (auswahlId !== letzteAuswahlId) {
+        letzteAuswahlId = auswahlId;
+        if (auswahlRecord && !sofort && !reduzierteBewegung) {
+          welleZeit = 0;
+          welleBasis = auswahlRecord.ringGroesse;
+          welle.position.set(
+            auswahlRecord.gruppe.position.x,
+            0.03,
+            auswahlRecord.gruppe.position.z
+          );
+        } else {
+          welleZeit = -1;
+        }
+      }
+      if (welleZeit >= 0) {
+        welleZeit += dt;
+        const wt = welleZeit / 0.65;
+        if (wt >= 1) {
+          welleZeit = -1;
+          welle.visible = false;
+        } else {
+          welle.visible = true;
+          welle.scale.setScalar(welleBasis * (1 + wt * 2.1));
+          welleMat.opacity = Math.pow(1 - wt, 1.6) * 0.85;
+        }
+      } else {
+        welle.visible = false;
+      }
+
       // Lichtpulse auf der B207: an den Enden weich ein- und ausblenden
       for (let i = 0; i < pulse.length; i++) {
         const t = (zeit * 0.06 + i * 0.34) % 1;
@@ -787,6 +852,36 @@ export default function SitePlan3D({
           b207a.z + (b207b.z - b207a.z) * t
         );
         pulse[i].material.opacity = reduzierteBewegung ? 0 : Math.sin(t * Math.PI) * 0.85;
+      }
+
+      // Info-Overlay der ausgewaehlten Parzelle per Bildschirmprojektion ausrichten
+      const anker = ankerRef.current;
+      if (anker) {
+        if (auswahlRecord) {
+          const oberkante =
+            auswahlRecord.hoehe * auswahlRecord.mesh.scale.y +
+            auswahlRecord.gruppe.position.y;
+          projektion.set(
+            auswahlRecord.gruppe.position.x,
+            oberkante,
+            auswahlRecord.gruppe.position.z
+          );
+          projektion.project(kamera);
+          const breite = container.clientWidth;
+          const hoehe = container.clientHeight;
+          if (projektion.z < 1 && breite > 0) {
+            const px = (projektion.x * 0.5 + 0.5) * breite;
+            const py = (-projektion.y * 0.5 + 0.5) * hoehe;
+            anker.style.display = "";
+            anker.style.transform = `translate(${px}px, ${py}px)`;
+            // Karte nach links klappen, wenn rechts der Platz ausgeht
+            anker.classList.toggle("sp-flip", px > breite - 280);
+          } else {
+            anker.style.display = "none";
+          }
+        } else {
+          anker.style.display = "none";
+        }
       }
     };
 
@@ -1010,13 +1105,75 @@ export default function SitePlan3D({
     };
   }, []);
 
+  // Daten der Popup-Karte (Positionierung übernimmt der Loop, Inhalt React)
+  const ausgewaehlt = selectedId
+    ? plots.find((p) => p.id === selectedId) ?? null
+    : null;
+
   return (
     <div
       ref={containerRef}
       className={className}
-      role="img"
       aria-label="Interaktiver 3D-Standortplan des Gewerbeparks Grabau"
       style={{ position: "absolute", inset: 0, width: "100%", height: "100%" }}
-    />
+    >
+      {/* Aufpoppende Info-Karte an der ausgewählten Parzelle */}
+      <div className="pointer-events-none absolute inset-0 z-10 overflow-hidden">
+        <div ref={ankerRef} className="sp-anker" style={{ display: "none" }}>
+          {ausgewaehlt && (
+            <div key={ausgewaehlt.id} className="sp-aufbau">
+              <span className="sp-leader" aria-hidden="true" />
+              <div className="sp-card">
+                <div className="sp-row flex items-center justify-between gap-4">
+                  <span className="eyebrow !text-[0.58rem] text-paper/50">
+                    Grundstück
+                  </span>
+                  <span
+                    className="inline-flex items-center gap-1.5 text-[0.68rem] font-bold uppercase tracking-wider"
+                    style={{ color: STATUS_TEXT[ausgewaehlt.status].farbe }}
+                  >
+                    <span
+                      className="h-1.5 w-1.5 rounded-full"
+                      style={{
+                        backgroundColor: STATUS_TEXT[ausgewaehlt.status].farbe,
+                      }}
+                    />
+                    {STATUS_TEXT[ausgewaehlt.status].label}
+                  </span>
+                </div>
+                <div className="sp-row mt-1.5 flex items-baseline gap-2.5">
+                  <span className="numeral text-[2.4rem] font-bold leading-none text-paper">
+                    {ausgewaehlt.label.replace(/^Nr\.\s*/, "")}
+                  </span>
+                  <span className="text-sm font-semibold text-gold">
+                    {ausgewaehlt.size
+                      ? `${ausgewaehlt.size.toLocaleString("de-DE")} m²`
+                      : "vergeben"}
+                  </span>
+                </div>
+                <div className="sp-row mt-2 flex gap-3 text-[0.68rem] text-paper/55">
+                  <span>GE-Gebiet</span>
+                  <span>GRZ 0,8</span>
+                  <span>bis 18 m Höhe</span>
+                </div>
+                {ausgewaehlt.status !== "verkauft" ? (
+                  <button
+                    type="button"
+                    onClick={() => onRequest?.(ausgewaehlt.id)}
+                    className="sp-row pointer-events-auto mt-3.5 inline-flex w-full items-center justify-center rounded-full bg-wine px-4 py-2 text-xs font-semibold text-paper transition-all hover:-translate-y-0.5 hover:bg-wine-dark"
+                  >
+                    Dieses Grundstück anfragen
+                  </button>
+                ) : (
+                  <p className="sp-row mt-3 text-[0.7rem] leading-snug text-paper/50">
+                    Bereits vergeben. Die Nachbarflächen sind noch frei.
+                  </p>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
   );
 }
