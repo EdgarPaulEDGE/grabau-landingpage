@@ -2,7 +2,7 @@ import Image from "next/image";
 import { Check, ArrowRight, MapPin } from "lucide-react";
 import Reveal from "./ui/Reveal";
 import HeroAerialCanvas from "./HeroAerialCanvas";
-import { HERO_PROOF, PLOTS } from "@/config/site";
+import { HERO_PROOF, PLOTS, PLOT_STATUS_META } from "@/config/site";
 
 export default function Hero() {
   const avail = PLOTS.filter((p) => p.status === "verfuegbar").length;
@@ -102,36 +102,48 @@ export default function Hero() {
             </Reveal>
           </div>
 
-          {/* Verfügbarkeits-Karte (Verknappung als Vertrauenssignal) */}
+          {/* Verfügbarkeit: eine große Zahl, ein Belegungsbalken, klickbar zum Plan */}
           <div className="lg:col-span-4">
             <Reveal delay={0.5}>
-              <div className="rounded-2xl border border-paper/15 bg-white/10 p-6 backdrop-blur-xl">
-                <p className="eyebrow text-paper/60">Verfügbarkeit heute</p>
-                <div className="mt-4 space-y-3.5">
-                  <AvailRow
-                    dot="var(--color-avail)"
-                    label="Sofort verfügbar"
-                    value={avail}
-                    strong
-                  />
-                  <AvailRow
-                    dot="var(--color-reserved)"
-                    label="Verbindlich reserviert"
-                    value={reserved}
-                  />
-                  <AvailRow
-                    dot="var(--color-sold)"
-                    label="Bereits verkauft"
-                    value={sold}
-                  />
+              <a
+                href="#standortplan"
+                className="group block rounded-2xl border border-white/10 bg-night/40 p-6 backdrop-blur-md transition-all duration-300 hover:-translate-y-1 hover:border-gold/50"
+              >
+                <p className="eyebrow text-paper/55">Aktuelle Verfügbarkeit</p>
+                <div className="mt-3 flex items-end gap-3">
+                  <span className="numeral text-6xl font-bold leading-none text-gold md:text-7xl">
+                    {avail}
+                  </span>
+                  <span className="pb-1 text-lg leading-tight text-paper/90">
+                    von {PLOTS.length} Grundstücken
+                    <br />
+                    noch frei
+                  </span>
                 </div>
-                <div className="mt-5 border-t border-paper/15 pt-4">
-                  <p className="text-sm leading-relaxed text-paper/70">
-                    Die Nachfrage läuft. Wer plant, sollte sich sein Grundstück
-                    früh sichern.
-                  </p>
+                {/* Belegungsbalken: jedes Segment ist eine echte Parzelle */}
+                <div className="mt-6 flex gap-1">
+                  {PLOTS.map((p) => (
+                    <span
+                      key={p.id}
+                      title={`${p.label}: ${PLOT_STATUS_META[p.status].label}`}
+                      className="h-1.5 flex-1 rounded-full"
+                      style={{
+                        backgroundColor: PLOT_STATUS_META[p.status].dot,
+                        opacity: p.status === "verfuegbar" ? 1 : 0.35,
+                      }}
+                    />
+                  ))}
                 </div>
-              </div>
+                <div className="mt-4 flex items-center justify-between text-sm">
+                  <span className="text-paper/60">
+                    {reserved} reserviert · {sold} verkauft
+                  </span>
+                  <span className="inline-flex items-center gap-1.5 font-semibold text-gold transition-transform group-hover:translate-x-1">
+                    Zum Standortplan
+                    <ArrowRight className="h-4 w-4" />
+                  </span>
+                </div>
+              </a>
             </Reveal>
           </div>
         </div>
@@ -150,35 +162,3 @@ export default function Hero() {
   );
 }
 
-function AvailRow({
-  dot,
-  label,
-  value,
-  strong = false,
-}: {
-  dot: string;
-  label: string;
-  value: number;
-  strong?: boolean;
-}) {
-  return (
-    <div className="flex items-center justify-between gap-4">
-      <span className="flex items-center gap-2.5 text-sm text-paper/80">
-        <span
-          className="h-2.5 w-2.5 rounded-full"
-          style={{ backgroundColor: dot }}
-        />
-        {label}
-      </span>
-      <span
-        className={
-          strong
-            ? "font-[family-name:var(--font-display)] text-2xl font-bold text-paper"
-            : "font-[family-name:var(--font-display)] text-xl text-paper/80"
-        }
-      >
-        {value}
-      </span>
-    </div>
-  );
-}
