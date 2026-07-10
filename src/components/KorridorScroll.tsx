@@ -108,7 +108,7 @@ export default function KorridorScroll() {
           <div className="mx-auto flex max-w-7xl items-center justify-between px-5 md:px-8">
             <div className="flex items-center gap-3">
               <span className="h-px w-8 bg-gold" />
-              <span className="eyebrow text-gold">Die Achse · Zum Scrollen</span>
+              <span className="eyebrow text-gold">Die Achse</span>
             </div>
             <span
               ref={counterRef}

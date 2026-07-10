@@ -77,9 +77,8 @@ export default function Footer() {
           </div>
         </div>
 
-        <div className="flex flex-col items-center justify-between gap-3 pt-6 text-xs text-paper/45 sm:flex-row">
+        <div className="flex justify-center pt-6 text-xs text-paper/45">
           <p>© {new Date().getFullYear()} Wirtschaftsförderung Herzogtum Lauenburg</p>
-          <p>Angaben ohne Gewähr · Stand Mai 2026</p>
         </div>
       </div>
     </footer>

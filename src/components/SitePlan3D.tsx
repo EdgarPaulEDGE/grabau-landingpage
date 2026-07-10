@@ -787,6 +787,9 @@ export default function SitePlan3D({
     const aktualisiere = (dt: number, zeit: number, sofort: boolean): void => {
       const glatt = sofort ? 1 : 1 - Math.exp(-dt * 7);
       const glattKamera = sofort ? 1 : 1 - Math.exp(-dt * 4);
+      // Drag reagiert direkter als Parallaxe/Zoom, sonst fuehlt sich das
+      // Drehen (v. a. auf Touch) traege an
+      const glattDrag = sofort ? 1 : 1 - Math.exp(-dt * 11);
 
       // Faellt die intern gehoverte Parzelle durch den Filter, Hover sofort aufloesen.
       // Sonst bleiben Cursor und Eltern-Hover-State nach einem Filterwechsel haengen.
@@ -805,8 +808,8 @@ export default function SitePlan3D({
       // Kamera: sehr langsame Idle-Drehung, gelerpte Maus-Parallaxe, gedaempftes Drag
       parallaxAz += (parallaxAzZiel - parallaxAz) * glattKamera;
       parallaxPolar += (parallaxPolarZiel - parallaxPolar) * glattKamera;
-      dragAz += (dragAzZiel - dragAz) * glattKamera;
-      dragPolar += (dragPolarZiel - dragPolar) * glattKamera;
+      dragAz += (dragAzZiel - dragAz) * glattDrag;
+      dragPolar += (dragPolarZiel - dragPolar) * glattDrag;
       const idle = reduzierteBewegung ? 0 : Math.sin(zeit * 0.1) * 0.06;
       const az = azimutBasis + idle + parallaxAz + dragAz;
       const polar = klemme(basisPolar + parallaxPolar + dragPolar, polarMin, 1.25);
@@ -1054,7 +1057,8 @@ export default function SitePlan3D({
         vorherY = e.clientY;
         if (Math.hypot(e.clientX - startX, e.clientY - startY) > 4) dragLaeuft = true;
         if (dragLaeuft) {
-          dragAzZiel = klemme(dragAzZiel - dx * 0.005, -0.45, 0.45);
+          // Volle 360-Grad-Drehung: Azimut absichtlich ungeklemmt
+          dragAzZiel = dragAzZiel - dx * 0.005;
           dragPolarZiel = klemme(dragPolarZiel + dy * 0.004, polarMin - basisPolar, 1.25 - basisPolar);
           canvas.style.cursor = "grabbing";
           return;
@@ -1081,12 +1085,14 @@ export default function SitePlan3D({
               zoomZiel = klemme(zoomZiel * (pinchDistanz / neu), 0.55, 1.3);
               pinchDistanz = neu;
             }
-            // Bewegung des Finger-Mittelpunkts dreht die Szene wie ein Maus-Drag
+            // Bewegung des Finger-Mittelpunkts dreht die Szene wie ein
+            // Maus-Drag. Azimut ungeklemmt (volle 360 Grad), Empfindlichkeit
+            // fuer Finger auf kleinem Canvas hoeher als fuer die Maus.
             const mx = (a.x + b.x) / 2;
             const my = (a.y + b.y) / 2;
-            dragAzZiel = klemme(dragAzZiel - (mx - altMx) * 0.005, -0.45, 0.45);
+            dragAzZiel = dragAzZiel - (mx - altMx) * 0.009;
             dragPolarZiel = klemme(
-              dragPolarZiel + (my - altMy) * 0.004,
+              dragPolarZiel + (my - altMy) * 0.006,
               polarMin - basisPolar,
               1.25 - basisPolar
             );
