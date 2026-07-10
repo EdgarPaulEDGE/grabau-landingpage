@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
 
 /** Verkaufsstatus einer Parzelle */
@@ -142,6 +142,13 @@ export default function SitePlan3D({
   const containerRef = useRef<HTMLDivElement | null>(null);
   // Anker des Info-Overlays: wird im Loop per Bildschirmprojektion bewegt
   const ankerRef = useRef<HTMLDivElement | null>(null);
+  // Popup erst nach der ersten echten Interaktion zeigen: die Vorauswahl
+  // beim Laden soll das Modell nicht sofort verdecken (v. a. Mobile)
+  const [interagiert, setInteragiert] = useState(false);
+  const initialAuswahlRef = useRef(selectedId);
+  useEffect(() => {
+    if (selectedId !== initialAuswahlRef.current) setInteragiert(true);
+  }, [selectedId]);
 
   // Laufzeit-Props als Refs, damit der Loop immer die aktuellen Werte liest
   const selectedRef = useRef<string | null>(selectedId);
@@ -194,7 +201,9 @@ export default function SitePlan3D({
       powerPreference: "high-performance",
     });
     renderer.outputColorSpace = THREE.SRGBColorSpace;
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.75));
+    // Volle Retina-Schaerfe: die Szene ist klein genug, dass auch DPR 3
+    // (iPhone) problemlos rendert. 1.75 sah auf Handys matschig aus.
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 3));
     renderer.setClearColor(0x000000, 0);
     // Filmisches Tone-Mapping + weiche Schatten: der Unterschied zwischen
     // "Spielbrett" und Architekturmodell
@@ -246,13 +255,31 @@ export default function SitePlan3D({
     const kameraZiel = new THREE.Vector3(0, 0, 0.5);
     const radiusBasis = Math.hypot(13, 13.5);
     let radiusAktuell = radiusBasis;
-    const basisPolar = Math.acos(13 / radiusBasis);
-    const polarMin = Math.min(basisPolar, 0.9);
-    const radiusFuerAspekt = (aspekt: number): number =>
-      radiusBasis * Math.max(1, Math.min(1.35 / Math.max(aspekt, 0.01), 1.9));
+    const basisPolarQuer = Math.acos(13 / radiusBasis);
+    // Hochkant: Ansicht um 90 Grad drehen (lange Achse laeuft vertikal) UND
+    // steiler von oben schauen, sonst frisst die Perspektive die Tiefe
+    // (vorne riesig, hinten winzig). Dazu mehr Kameradistanz.
+    let azimutBasis = 0;
+    let basisPolar = basisPolarQuer;
+    let polarMin = Math.min(basisPolarQuer, 0.9);
+    const stelleAnsichtEin = (aspekt: number): void => {
+      const hochkant = aspekt < 0.85;
+      azimutBasis = hochkant ? Math.PI / 2 : 0;
+      basisPolar = hochkant ? 0.5 : basisPolarQuer;
+      polarMin = hochkant ? 0.32 : Math.min(basisPolarQuer, 0.9);
+      radiusAktuell = hochkant
+        ? radiusBasis * Math.max(1, Math.min(0.95 / Math.max(aspekt, 0.01), 1.6))
+        : radiusBasis * Math.max(1, Math.min(1.15 / Math.max(aspekt, 0.01), 1.8));
+    };
     const startBreite = Math.max(container.clientWidth, 1);
     const startHoehe = Math.max(container.clientHeight, 1);
-    radiusAktuell = radiusFuerAspekt(startBreite / startHoehe);
+    stelleAnsichtEin(startBreite / startHoehe);
+    // Zoom: Mausrad und Zwei-Finger-Pinch, weich gedaempft
+    let zoomZiel = 1;
+    let zoomIst = 1;
+    const aktiveZeiger = new Map<number, { x: number; y: number }>();
+    let pinchDistanz = 0;
+    let pinchAktiv = false;
     const kamera = new THREE.PerspectiveCamera(38, startBreite / startHoehe, 0.1, 120);
     kamera.position.set(0, 13, 14);
     kamera.lookAt(kameraZiel);
@@ -274,6 +301,8 @@ export default function SitePlan3D({
     sonne.shadow.camera.near = 2;
     sonne.shadow.camera.far = 45;
     sonne.shadow.bias = -0.0004;
+    // Gegen Shadow-Acne (Streifen-Schraffur auf flachen Oberseiten)
+    sonne.shadow.normalBias = 0.035;
     szene.add(sonne);
     const goldLicht = new THREE.PointLight(FARBE_GOLD, 8, 30, 2);
     goldLicht.position.set(0, 6.5, 0.5);
@@ -284,10 +313,6 @@ export default function SitePlan3D({
     // (groessere Kameradistanz) komplett im Nebel.
     const nebel = new THREE.Fog(0x1a1113, radiusAktuell + 5.3, radiusAktuell + 27.3);
     szene.fog = nebel;
-    const passeNebelAn = (): void => {
-      nebel.near = radiusAktuell + 5.3;
-      nebel.far = radiusAktuell + 27.3;
-    };
 
     // Boden: flaches Plateau als extrudiertes, abgerundetes Rechteck, Oberkante bei y = 0
     const plateauForm = abgerundetesRechteck(26, 14, 1.1);
@@ -309,6 +334,18 @@ export default function SitePlan3D({
     const plateau = new THREE.Mesh(plateauGeo, plateauMat);
     plateau.receiveShadow = true;
     szene.add(plateau);
+
+    // Weite Umgebung unter der Platte: nimmt dem Modell das harte
+    // "Weltende" und laesst die Raender im Nebel auslaufen
+    const umgebungGeo = merkeGeo(new THREE.CircleGeometry(90, 48));
+    umgebungGeo.rotateX(-Math.PI / 2);
+    const umgebungMat = merkeMat(
+      new THREE.MeshStandardMaterial({ color: 0x1e1417, roughness: 1, metalness: 0 })
+    );
+    const umgebung = new THREE.Mesh(umgebungGeo, umgebungMat);
+    umgebung.position.y = -0.6;
+    umgebung.receiveShadow = true;
+    szene.add(umgebung);
 
     // Sehr feines goldenes Vermessungsraster als prozeduraler Grid-Shader auf einer zweiten Ebene.
     // Kein Zugriff auf material.extensions.derivatives (in three 0.185 entfernt), keine fwidth-Nutzung.
@@ -771,12 +808,17 @@ export default function SitePlan3D({
       dragAz += (dragAzZiel - dragAz) * glattKamera;
       dragPolar += (dragPolarZiel - dragPolar) * glattKamera;
       const idle = reduzierteBewegung ? 0 : Math.sin(zeit * 0.1) * 0.06;
-      const az = idle + parallaxAz + dragAz;
+      const az = azimutBasis + idle + parallaxAz + dragAz;
       const polar = klemme(basisPolar + parallaxPolar + dragPolar, polarMin, 1.25);
+      // Zoom weich nachziehen; Nebel wandert mit der Kameradistanz
+      zoomIst += (zoomZiel - zoomIst) * glattKamera;
+      const radiusEffektiv = radiusAktuell * zoomIst;
+      nebel.near = radiusEffektiv + 5.3;
+      nebel.far = radiusEffektiv + 27.3;
       kamera.position.set(
-        kameraZiel.x + radiusAktuell * Math.sin(polar) * Math.sin(az),
-        kameraZiel.y + radiusAktuell * Math.cos(polar),
-        kameraZiel.z + radiusAktuell * Math.sin(polar) * Math.cos(az)
+        kameraZiel.x + radiusEffektiv * Math.sin(polar) * Math.sin(az),
+        kameraZiel.y + radiusEffektiv * Math.cos(polar),
+        kameraZiel.z + radiusEffektiv * Math.sin(polar) * Math.cos(az)
       );
       kamera.lookAt(kameraZiel);
 
@@ -981,6 +1023,14 @@ export default function SitePlan3D({
         } catch {
           /* Capture ist optional */
         }
+      } else {
+        // Touch-Zeiger fuer Pinch-Zoom verfolgen
+        aktiveZeiger.set(e.pointerId, { x: e.clientX, y: e.clientY });
+        if (aktiveZeiger.size === 2) {
+          const [a, b] = [...aktiveZeiger.values()];
+          pinchDistanz = Math.hypot(a.x - b.x, a.y - b.y);
+          pinchAktiv = true;
+        }
       }
     };
 
@@ -1010,8 +1060,22 @@ export default function SitePlan3D({
           return;
         }
       }
-      // Hover nur fuer Maus-Zeiger: Touch dient ausschliesslich Tap und Seiten-Scroll
-      if (!istMaus) return;
+      // Touch: Zeiger fuer Pinch-Zoom fortschreiben
+      if (!istMaus) {
+        if (aktiveZeiger.has(e.pointerId)) {
+          aktiveZeiger.set(e.pointerId, { x: e.clientX, y: e.clientY });
+          if (aktiveZeiger.size >= 2 && pinchDistanz > 0) {
+            const [a, b] = [...aktiveZeiger.values()];
+            const neu = Math.hypot(a.x - b.x, a.y - b.y);
+            if (neu > 0) {
+              zoomZiel = klemme(zoomZiel * (pinchDistanz / neu), 0.55, 1.3);
+              pinchDistanz = neu;
+            }
+          }
+        }
+        // Kein Hover fuer Touch: Finger dienen Tap, Scroll und Pinch
+        return;
+      }
       hoverX = e.clientX;
       hoverY = e.clientY;
       if (schleifeLaeuft) {
@@ -1040,18 +1104,32 @@ export default function SitePlan3D({
       const warDrag = dragLaeuft;
       dragLaeuft = false;
       canvas.style.cursor = internesHover ? "pointer" : "";
+      aktiveZeiger.delete(e.pointerId);
+      // Nach einem Pinch ist der letzte Finger-Lift KEIN Tap
+      const warPinch = pinchAktiv;
+      if (aktiveZeiger.size === 0) pinchAktiv = false;
       // Klick bzw. Tap mit zeigerabhängiger Bewegungs-Toleranz:
       // Finger wackeln beim Tippen deutlich mehr als eine Maus
       const toleranz = e.pointerType === "mouse" ? 6 : 16;
-      if (!warDrag && Math.hypot(e.clientX - startX, e.clientY - startY) < toleranz) {
+      if (
+        !warDrag &&
+        !warPinch &&
+        Math.hypot(e.clientX - startX, e.clientY - startY) < toleranz
+      ) {
         const rec = ermittleTreffer(e.clientX, e.clientY);
-        if (rec) onSelectRef.current(rec.plot.id);
+        if (rec) {
+          onSelectRef.current(rec.plot.id);
+          // Ab der ersten echten Auswahl darf das Popup erscheinen
+          setInteragiert(true);
+        }
       }
     };
 
-    const beiZeigerAbbruch = (): void => {
+    const beiZeigerAbbruch = (e: PointerEvent): void => {
       mausGedrueckt = false;
       dragLaeuft = false;
+      aktiveZeiger.delete(e.pointerId);
+      if (aktiveZeiger.size === 0) pinchAktiv = false;
       canvas.style.cursor = internesHover ? "pointer" : "";
     };
 
@@ -1067,11 +1145,27 @@ export default function SitePlan3D({
       }
     };
 
+    // Mausrad-Zoom: sanft exponentiell, mit Grenzen
+    const beiRad = (e: WheelEvent): void => {
+      e.preventDefault();
+      zoomZiel = klemme(zoomZiel * Math.exp(e.deltaY * 0.0012), 0.55, 1.3);
+      if (!schleifeLaeuft) {
+        zoomIst = zoomZiel;
+        renderEinzelbild();
+      }
+    };
+    // Waehrend eines Pinch das Browser-Scrollen/Zoomen unterbinden
+    const blockierePinchScroll = (e: TouchEvent): void => {
+      if (e.touches.length >= 2) e.preventDefault();
+    };
+
     canvas.addEventListener("pointerdown", beiZeigerRunter);
     canvas.addEventListener("pointermove", beiZeigerBewegung);
     canvas.addEventListener("pointerup", beiZeigerHoch);
     canvas.addEventListener("pointercancel", beiZeigerAbbruch);
     canvas.addEventListener("pointerleave", beiZeigerVerlassen);
+    canvas.addEventListener("wheel", beiRad, { passive: false });
+    canvas.addEventListener("touchmove", blockierePinchScroll, { passive: false });
 
     const beiSichtbarkeit = (): void => {
       pruefeLaufzustand();
@@ -1098,9 +1192,8 @@ export default function SitePlan3D({
       renderer.setSize(b, h, false);
       kamera.aspect = b / h;
       kamera.updateProjectionMatrix();
-      // Kameradistanz und Nebel an das neue Seitenverhaeltnis anpassen
-      radiusAktuell = radiusFuerAspekt(kamera.aspect);
-      passeNebelAn();
+      // Kameradistanz und Ausrichtung an das neue Seitenverhaeltnis anpassen
+      stelleAnsichtEin(kamera.aspect);
       if (schleifeLaeuft) renderer.render(szene, kamera);
       else renderEinzelbild();
     });
@@ -1128,6 +1221,8 @@ export default function SitePlan3D({
       canvas.removeEventListener("pointermove", beiZeigerBewegung);
       canvas.removeEventListener("pointerup", beiZeigerHoch);
       canvas.removeEventListener("pointercancel", beiZeigerAbbruch);
+      canvas.removeEventListener("wheel", beiRad);
+      canvas.removeEventListener("touchmove", blockierePinchScroll);
       canvas.removeEventListener("pointerleave", beiZeigerVerlassen);
       canvas.removeEventListener("webglcontextlost", beiKontextVerlust);
       for (const g of geometrien) g.dispose();
@@ -1159,7 +1254,7 @@ export default function SitePlan3D({
       {/* Aufpoppende Info-Karte an der ausgewählten Parzelle */}
       <div className="pointer-events-none absolute inset-0 z-10 overflow-hidden">
         <div ref={ankerRef} className="sp-anker" style={{ display: "none" }}>
-          {ausgewaehlt && (
+          {ausgewaehlt && interagiert && (
             <div key={ausgewaehlt.id} className="sp-aufbau">
               <span className="sp-leader" aria-hidden="true" />
               <div className="sp-card">
