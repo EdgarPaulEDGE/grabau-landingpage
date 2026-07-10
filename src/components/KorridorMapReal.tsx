@@ -216,6 +216,13 @@ export default function KorridorMapReal({ progressRef, className }: KorridorMapR
             if (/place|city|town|country|state|capital/i.test(id)) {
               map.setPaintProperty(id, "text-color", "#7E7268");
               map.setPaintProperty(id, "text-halo-color", "#150E11");
+              /* Beschriftung auf Deutsch: name:de mit Fallback auf den
+                 Lokalnamen (statt der englischen Default-Spalte) */
+              map.setLayoutProperty(id, "text-field", [
+                "coalesce",
+                ["get", "name:de"],
+                ["get", "name"],
+              ]);
               /* Unsere Marker-Städte aus den Basiskarten-Labels ausschließen,
                  sonst doppeln sich die Schriftzüge (z. B. HAMBURG zweimal) */
               const eigene = [
