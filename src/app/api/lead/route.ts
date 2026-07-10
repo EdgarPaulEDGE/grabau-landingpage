@@ -34,17 +34,31 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: false, error: "validation" }, { status: 400 });
   }
 
-  // Lokaler Fallback-Speicher (best effort, blockiert die Antwort nicht)
+  // Lokaler Fallback-Speicher (best effort, blockiert die Antwort nicht).
+  // Achtung: Auf Hosts wie Render ist das Dateisystem fluechtig, die Datei
+  // ist dort nur eine Notfall-Kopie bis zum naechsten Deploy.
   void persistLead(data);
 
-  // E-Mail an die WFL (nur wenn konfiguriert)
   const apiKey = process.env.RESEND_API_KEY;
-  if (apiKey) {
-    try {
-      await sendEmail(apiKey, data);
-    } catch (err) {
-      // Mail fehlgeschlagen, aber Lead ist gespeichert: kein harter Fehler
-      console.error("Lead-Mail fehlgeschlagen:", err);
+  const produktion = process.env.NODE_ENV === "production";
+
+  // In Produktion MUSS die Mail rausgehen, sonst waere der Lead still
+  // verloren. Der Fehlerfall zeigt dem Nutzer den direkten Mail-Fallback.
+  if (!apiKey) {
+    if (produktion) {
+      console.error("RESEND_API_KEY fehlt: Lead kann nicht zugestellt werden");
+      return NextResponse.json({ ok: false, error: "mail_not_configured" }, { status: 503 });
+    }
+    // Lokale Entwicklung: Datei-Speicherung reicht
+    return NextResponse.json({ ok: true });
+  }
+
+  try {
+    await sendEmail(apiKey, data);
+  } catch (err) {
+    console.error("Lead-Mail fehlgeschlagen:", err);
+    if (produktion) {
+      return NextResponse.json({ ok: false, error: "mail_failed" }, { status: 502 });
     }
   }
 

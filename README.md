@@ -80,14 +80,22 @@ Anfragen gehen an `POST /api/lead`. Ohne Konfiguration werden sie lokal in
 nach `.env.local` kopieren und einen [Resend](https://resend.com)-API-Key
 eintragen. Dann geht jede Anfrage per Mail an `warncke@wfl.de`.
 
-## Deployment
+## Deployment (Render.com)
 
 Die Seite braucht wegen der `/api/lead`-Route einen Node-Server (kein reines
-Static Export).
+Static Export). Die Service-Konfiguration liegt als Blueprint in
+[render.yaml](render.yaml) (Region Frankfurt, Auto-Deploy auf `main`).
 
-- **Vercel:** Repo verbinden, fertig. `RESEND_API_KEY` als Env-Variable setzen.
-- **Render.com:** Web Service, Build `npm install && npm run build`,
-  Start `npm run start`, Env-Variablen setzen.
+1. [dashboard.render.com](https://dashboard.render.com) → **New → Blueprint**
+2. Repo `EdgarPaulEDGE/grabau-landingpage` auswählen, Render liest die
+   `render.yaml` und legt den Web Service an.
+3. Beim Anlegen werden zwei Werte abgefragt:
+   - `RESEND_API_KEY`: API-Key von [resend.com](https://resend.com)
+   - `LEAD_FROM_EMAIL`: verifizierte Absender-Adresse (z. B. `grabau@wfl.de`)
+
+Wichtig: Ohne gültigen `RESEND_API_KEY` meldet das Formular in Produktion
+bewusst einen Fehler und zeigt den direkten E-Mail-Fallback. So geht kein
+Lead still verloren (das Dateisystem auf Render ist flüchtig).
 
 ## Barrierefreiheit & Robustheit
 
