@@ -210,6 +210,9 @@ export default function SitePlan3D({
     canvas.style.height = "100%";
     canvas.style.display = "block";
     canvas.style.userSelect = "none";
+    // pan-y: vertikales Seiten-Scrollen bleibt möglich, aber der Browser
+    // bricht Taps nicht mehr vorschnell mit pointercancel ab
+    canvas.style.touchAction = "pan-y";
     container.appendChild(canvas);
 
     // Kontextverlust abfangen, damit der Browser den Kontext wiederherstellen kann
@@ -237,13 +240,19 @@ export default function SitePlan3D({
 
     const szene = new THREE.Scene();
 
-    // Kamera: fov 38, Start (0, 13, 14), Blick auf (0, 0, 0.5)
+    // Kamera: fov 38, Start (0, 13, 14), Blick auf (0, 0, 0.5).
+    // Der Orbit-Radius waechst auf schmalen Viewports (Mobile), damit das
+    // gesamte Gelaende im Bild bleibt statt seitlich abgeschnitten zu werden.
     const kameraZiel = new THREE.Vector3(0, 0, 0.5);
-    const radius = Math.hypot(13, 13.5);
-    const basisPolar = Math.acos(13 / radius);
+    const radiusBasis = Math.hypot(13, 13.5);
+    let radiusAktuell = radiusBasis;
+    const basisPolar = Math.acos(13 / radiusBasis);
     const polarMin = Math.min(basisPolar, 0.9);
+    const radiusFuerAspekt = (aspekt: number): number =>
+      radiusBasis * Math.max(1, Math.min(1.35 / Math.max(aspekt, 0.01), 1.9));
     const startBreite = Math.max(container.clientWidth, 1);
     const startHoehe = Math.max(container.clientHeight, 1);
+    radiusAktuell = radiusFuerAspekt(startBreite / startHoehe);
     const kamera = new THREE.PerspectiveCamera(38, startBreite / startHoehe, 0.1, 120);
     kamera.position.set(0, 13, 14);
     kamera.lookAt(kameraZiel);
@@ -270,8 +279,15 @@ export default function SitePlan3D({
     goldLicht.position.set(0, 6.5, 0.5);
     szene.add(goldLicht);
 
-    // Leichter Tiefen-Nebel Richtung Sektionshintergrund
-    szene.fog = new THREE.Fog(0x1a1113, 24, 46);
+    // Leichter Tiefen-Nebel Richtung Sektionshintergrund.
+    // Skaliert mit dem Orbit-Radius, sonst versinkt die Szene auf Mobile
+    // (groessere Kameradistanz) komplett im Nebel.
+    const nebel = new THREE.Fog(0x1a1113, radiusAktuell + 5.3, radiusAktuell + 27.3);
+    szene.fog = nebel;
+    const passeNebelAn = (): void => {
+      nebel.near = radiusAktuell + 5.3;
+      nebel.far = radiusAktuell + 27.3;
+    };
 
     // Boden: flaches Plateau als extrudiertes, abgerundetes Rechteck, Oberkante bei y = 0
     const plateauForm = abgerundetesRechteck(26, 14, 1.1);
@@ -629,6 +645,7 @@ export default function SitePlan3D({
       };
       aufzeichnungen.push(record);
       meshZuRecord.set(mesh, record);
+      meshZuRecord.set(badge, record);
       idZuRecord.set(plot.id, record);
     }
 
@@ -717,7 +734,12 @@ export default function SitePlan3D({
       raycaster.setFromCamera(zeigerNdc, kamera);
       const kandidaten: THREE.Object3D[] = [];
       for (const r of aufzeichnungen) {
-        if (!istGefiltert(r)) kandidaten.push(r.mesh);
+        if (!istGefiltert(r)) {
+          kandidaten.push(r.mesh);
+          // Auch das schwebende Nummern-Badge ist Trefferfläche: auf Touch
+          // zielen Finger fast immer auf die Nummer statt auf den Körper
+          kandidaten.push(r.badge);
+        }
       }
       const treffer = raycaster.intersectObjects(kandidaten, false);
       if (treffer.length === 0) return null;
@@ -752,9 +774,9 @@ export default function SitePlan3D({
       const az = idle + parallaxAz + dragAz;
       const polar = klemme(basisPolar + parallaxPolar + dragPolar, polarMin, 1.25);
       kamera.position.set(
-        kameraZiel.x + radius * Math.sin(polar) * Math.sin(az),
-        kameraZiel.y + radius * Math.cos(polar),
-        kameraZiel.z + radius * Math.sin(polar) * Math.cos(az)
+        kameraZiel.x + radiusAktuell * Math.sin(polar) * Math.sin(az),
+        kameraZiel.y + radiusAktuell * Math.cos(polar),
+        kameraZiel.z + radiusAktuell * Math.sin(polar) * Math.cos(az)
       );
       kamera.lookAt(kameraZiel);
 
@@ -874,8 +896,20 @@ export default function SitePlan3D({
             const py = (-projektion.y * 0.5 + 0.5) * hoehe;
             anker.style.display = "";
             anker.style.transform = `translate(${px}px, ${py}px)`;
-            // Karte nach links klappen, wenn rechts der Platz ausgeht
-            anker.classList.toggle("sp-flip", px > breite - 280);
+            // Schmale Viewports: Karte um den Anker zentrieren und an die
+            // Raender klemmen. Sonst: nach links klappen, wenn rechts der
+            // Platz ausgeht. Nach unten immer, wenn oben der Platz fehlt.
+            const kartenBreite = 232;
+            if (breite < 520) {
+              anker.classList.add("sp-mittig");
+              anker.classList.remove("sp-flip");
+              const links = klemme(px - kartenBreite / 2, 8, breite - kartenBreite - 8);
+              anker.style.setProperty("--sp-links", `${links - px}px`);
+            } else {
+              anker.classList.remove("sp-mittig");
+              anker.classList.toggle("sp-flip", px > breite - 280);
+            }
+            anker.classList.toggle("sp-unten", py < 262);
           } else {
             anker.style.display = "none";
           }
@@ -1006,8 +1040,10 @@ export default function SitePlan3D({
       const warDrag = dragLaeuft;
       dragLaeuft = false;
       canvas.style.cursor = internesHover ? "pointer" : "";
-      // Klick bzw. Tap nur bei Bewegungs-Toleranz unter 6 Pixeln
-      if (!warDrag && Math.hypot(e.clientX - startX, e.clientY - startY) < 6) {
+      // Klick bzw. Tap mit zeigerabhängiger Bewegungs-Toleranz:
+      // Finger wackeln beim Tippen deutlich mehr als eine Maus
+      const toleranz = e.pointerType === "mouse" ? 6 : 16;
+      if (!warDrag && Math.hypot(e.clientX - startX, e.clientY - startY) < toleranz) {
         const rec = ermittleTreffer(e.clientX, e.clientY);
         if (rec) onSelectRef.current(rec.plot.id);
       }
@@ -1062,6 +1098,9 @@ export default function SitePlan3D({
       renderer.setSize(b, h, false);
       kamera.aspect = b / h;
       kamera.updateProjectionMatrix();
+      // Kameradistanz und Nebel an das neue Seitenverhaeltnis anpassen
+      radiusAktuell = radiusFuerAspekt(kamera.aspect);
+      passeNebelAn();
       if (schleifeLaeuft) renderer.render(szene, kamera);
       else renderEinzelbild();
     });
