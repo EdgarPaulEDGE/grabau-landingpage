@@ -6,7 +6,7 @@ import { FACTS } from "@/config/site";
 
 export default function FactsData() {
   return (
-    <section id="flaechen" className="bg-paper py-20 md:py-28">
+    <section id="flaechen" className="bg-paper-2 py-20 md:py-28">
       <div className="mx-auto max-w-7xl px-5 md:px-8">
         <SectionHeading
           eyebrow="Standortdaten"
