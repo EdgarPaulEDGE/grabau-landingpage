@@ -21,9 +21,9 @@ export default function Home() {
       <main>
         <Hero />
         <KorridorScroll />
-        <Location />
         <TrustMarquee />
         <Stats />
+        <Location />
         <ProblemSolution />
         <SitePlan />
         <FactsData />
