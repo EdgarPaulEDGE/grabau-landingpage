@@ -20,11 +20,11 @@ export default function Home() {
       <Header />
       <main>
         <Hero />
+        <KorridorScroll />
+        <Location />
         <TrustMarquee />
         <Stats />
         <ProblemSolution />
-        <KorridorScroll />
-        <Location />
         <SitePlan />
         <FactsData />
         <Industries />
