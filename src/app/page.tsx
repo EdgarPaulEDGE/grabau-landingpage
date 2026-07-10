@@ -23,8 +23,8 @@ export default function Home() {
         <TrustMarquee />
         <Stats />
         <ProblemSolution />
-        <Location />
         <KorridorScroll />
+        <Location />
         <SitePlan />
         <FactsData />
         <Industries />
