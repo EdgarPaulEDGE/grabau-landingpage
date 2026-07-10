@@ -1060,20 +1060,39 @@ export default function SitePlan3D({
           return;
         }
       }
-      // Touch: Zeiger fuer Pinch-Zoom fortschreiben
+      // Touch: Zeiger fuer Pinch-Zoom und Zwei-Finger-Drehen fortschreiben
       if (!istMaus) {
         if (aktiveZeiger.has(e.pointerId)) {
+          // Alten Finger-Mittelpunkt VOR dem Update merken
+          let altMx = 0;
+          let altMy = 0;
+          const hatteZwei = aktiveZeiger.size >= 2;
+          if (hatteZwei) {
+            const werte = [...aktiveZeiger.values()];
+            altMx = (werte[0].x + werte[1].x) / 2;
+            altMy = (werte[0].y + werte[1].y) / 2;
+          }
           aktiveZeiger.set(e.pointerId, { x: e.clientX, y: e.clientY });
-          if (aktiveZeiger.size >= 2 && pinchDistanz > 0) {
+          if (hatteZwei && pinchDistanz > 0) {
             const [a, b] = [...aktiveZeiger.values()];
+            // Abstand der Finger steuert den Zoom
             const neu = Math.hypot(a.x - b.x, a.y - b.y);
             if (neu > 0) {
               zoomZiel = klemme(zoomZiel * (pinchDistanz / neu), 0.55, 1.3);
               pinchDistanz = neu;
             }
+            // Bewegung des Finger-Mittelpunkts dreht die Szene wie ein Maus-Drag
+            const mx = (a.x + b.x) / 2;
+            const my = (a.y + b.y) / 2;
+            dragAzZiel = klemme(dragAzZiel - (mx - altMx) * 0.005, -0.45, 0.45);
+            dragPolarZiel = klemme(
+              dragPolarZiel + (my - altMy) * 0.004,
+              polarMin - basisPolar,
+              1.25 - basisPolar
+            );
           }
         }
-        // Kein Hover fuer Touch: Finger dienen Tap, Scroll und Pinch
+        // Kein Hover fuer Touch: Finger dienen Tap, Scroll, Pinch und Drehen
         return;
       }
       hoverX = e.clientX;

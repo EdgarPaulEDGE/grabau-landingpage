@@ -148,15 +148,6 @@ export default function Hero() {
           </div>
         </div>
 
-        {/* Scroll-Hinweis: ruhige Goldlinie statt hüpfendem Pfeil */}
-        <Reveal delay={0.7}>
-          <div className="mt-12 hidden items-center gap-3 md:flex">
-            <span className="h-10 w-px bg-gradient-to-b from-gold/0 via-gold/80 to-gold/0" />
-            <span className="text-xs uppercase tracking-[0.22em] text-paper/50">
-              Scrollen
-            </span>
-          </div>
-        </Reveal>
       </div>
     </section>
   );

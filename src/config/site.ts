@@ -24,7 +24,6 @@ export const HERO_PROOF = [
   "B-Plan rechtskräftig",
   "Verfügbar ab sofort",
   "Keine Maklerprovision",
-  "Direkter Draht zur WFL",
 ] as const;
 
 /** Große Kennzahlen (Stat-Strip). value wird animiert hochgezählt. */
