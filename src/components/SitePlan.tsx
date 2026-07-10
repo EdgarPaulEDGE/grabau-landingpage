@@ -150,7 +150,13 @@ export default function SitePlan() {
               </div>
 
               {view === "3d" ? (
-                <div className="relative h-[420px] md:h-[560px]">
+                <div
+                  className="relative h-[440px] md:h-[560px]"
+                  style={{
+                    background:
+                      "radial-gradient(120% 90% at 50% 32%, #241820 0%, #191114 55%, #120D0F 100%)",
+                  }}
+                >
                   <SitePlan3D
                     plots={PLOTS}
                     selectedId={selected}
@@ -228,7 +234,7 @@ export default function SitePlan() {
                 <span className="ml-auto hidden items-center gap-1.5 text-xs text-muted sm:flex">
                   <Maximize2 className="h-3.5 w-3.5" />
                   {view === "3d"
-                    ? "Ziehen: drehen · Klicken: Grundstück wählen"
+                    ? "Ziehen dreht · Scrollen oder Pinch zoomt · Klick wählt"
                     : "Kartenausschnitt: Bundesstraße B207"}
                 </span>
               </div>
