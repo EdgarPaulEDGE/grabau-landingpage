@@ -1,0 +1,18 @@
+services:
+  - type: web
+    name: grabau-landingpage
+    runtime: node
+    region: frankfurt
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      # Resend-API-Key (resend.com): ohne ihn meldet das Formular in
+      # Produktion bewusst einen Fehler, damit kein Lead still verloren geht
+      - key: RESEND_API_KEY
+        sync: false
+      - key: LEAD_FROM_EMAIL
+        sync: false
+      - key: LEAD_TO_EMAIL
+        value: warncke@wfl.de
