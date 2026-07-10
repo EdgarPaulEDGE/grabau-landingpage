@@ -283,6 +283,30 @@ h1, h2, h3, h4 {
   right: -14px;
   transform-origin: bottom right;
 }
+/* Schmale Viewports: Karte um den Anker zentriert, an Ränder geklemmt */
+.sp-mittig .sp-card {
+  left: var(--sp-links, -116px);
+  right: auto;
+  transform-origin: bottom center;
+}
+.sp-unten.sp-mittig .sp-card {
+  transform-origin: top center;
+}
+/* Variante "nach unten": wenn oben kein Platz ist (v. a. Mobile) */
+.sp-unten .sp-leader {
+  bottom: auto;
+  top: 0;
+  transform-origin: top;
+  background: linear-gradient(to bottom, rgba(197, 165, 114, 0.15), #c5a572);
+}
+.sp-unten .sp-card {
+  bottom: auto;
+  top: 58px;
+  transform-origin: top left;
+}
+.sp-unten.sp-flip .sp-card {
+  transform-origin: top right;
+}
 /* Inhalt staffelt sich zeilenweise ein */
 .sp-row {
   opacity: 0;
