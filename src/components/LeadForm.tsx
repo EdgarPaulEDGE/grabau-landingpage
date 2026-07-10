@@ -107,7 +107,7 @@ export default function LeadForm() {
           </h2>
           <p className="mt-5 text-lg leading-relaxed text-paper/70">
             Fordern Sie das kostenlose Exposé an oder stellen Sie Ihre Frage.
-            Nina Warncke meldet sich in der Regel am selben Werktag.
+            Wir melden uns schnellstmöglich.
           </p>
         </div>
 
@@ -153,7 +153,7 @@ export default function LeadForm() {
             </div>
             <div className="mt-8 flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-paper/70">
               <CalendarClock className="h-4 w-4 text-gold" />
-              Antwort in der Regel am selben Werktag
+              Wir melden uns schnellstmöglich
             </div>
             <div className="mt-auto flex items-center gap-3 pt-8">
               <span className="grid h-12 w-12 place-items-center rounded-xl bg-paper ring-1 ring-white/10">
@@ -295,8 +295,8 @@ function SuccessPanel() {
       </span>
       <h3 className="mt-6 text-2xl font-bold text-ink">Vielen Dank!</h3>
       <p className="mt-3 max-w-sm leading-relaxed text-muted">
-        Ihre Anfrage ist bei der WFL eingegangen. Nina Warncke meldet sich in
-        der Regel am selben Werktag mit dem vollständigen Exposé.
+        Ihre Anfrage ist bei der WFL eingegangen. Wir melden uns
+        schnellstmöglich mit dem vollständigen Exposé.
       </p>
       <a
         href="/expose/bplan-grabau-nr4.pdf"
