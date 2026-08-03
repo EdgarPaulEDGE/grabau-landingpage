@@ -7,6 +7,35 @@
  * B-Plan Nr. 4 „Auf'n Ruhm", WFL-Standortdaten.
  */
 
+/**
+ * Kanonische Adresse der Seite.
+ * Aktuell die GitHub-Pages-Vorschau. Sobald gewerbepark-grabau.de
+ * registriert ist, hier auf "https://gewerbepark-grabau.de" umstellen:
+ * Metadaten, Link-Vorschaubilder und JSON-LD ziehen alle diesen Wert.
+ */
+export const SITE_URL = "https://edgarpauledge.github.io/grabau-landingpage";
+
+/**
+ * Solange die Seite unter github.io läuft, ist sie nur eine interne
+ * Vorschau: dann NICHT indexieren, sonst rankt später die Vorschau
+ * gegen die echte Domain. Der Wechsel von SITE_URL schaltet die
+ * Indexierung automatisch frei.
+ */
+export const IST_VORSCHAU = SITE_URL.includes("github.io");
+
+/** Der Gewerbepark als Ort (für strukturierte Daten und Karten-Links). */
+export const STANDORT = {
+  name: "Gewerbepark Grabauer Ruhm",
+  strasse: "Auf dem Ruhm",
+  ort: "Grabau",
+  region: "Schleswig-Holstein",
+  land: "DE",
+  /** Näherungswerte für das Gelände an der B207 */
+  lat: 53.548,
+  lon: 10.468,
+  bplan: "Nr. 4 „Auf'n Ruhm“",
+} as const;
+
 export const CONTACT = {
   name: "Nina Warncke",
   role: "Ansprechpartnerin Gewerbeflächen · WFL",
