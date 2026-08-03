@@ -34,6 +34,15 @@ export const metadata: Metadata = {
     // einem Unterordner, ein root-absoluter Pfad würde ihn überschreiben.
     images: [{ url: "img/hero-aerial.jpg", width: 2000, height: 1400 }],
   },
+  // WFL-Wortmarke auf Weinrot. Pfade bewusst relativ, damit sie auch im
+  // GitHub-Pages-Unterordner stimmen.
+  icons: {
+    icon: [
+      { url: "favicon.ico", sizes: "any" },
+      { url: "icon-512.png", type: "image/png", sizes: "512x512" },
+    ],
+    apple: { url: "apple-touch-icon.png", sizes: "180x180" },
+  },
   // Vorschau unter github.io bleibt aus dem Index, damit sie später nicht
   // gegen die eigene Domain konkurriert (siehe IST_VORSCHAU in site.ts).
   robots: IST_VORSCHAU
