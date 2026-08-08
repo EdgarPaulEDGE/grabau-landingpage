@@ -14,7 +14,7 @@ import { join, extname } from "node:path";
 const [, , outDir = "out", repo = "grabau-landingpage"] = process.argv;
 
 /** Öffentliche Verzeichnisse, deren root-absolute Pfade umgeschrieben werden */
-const ASSET_DIRS = ["_next", "img", "fonts", "logos", "expose"];
+const ASSET_DIRS = ["_next", "img", "fonts", "logos", "expose", "terrain"];
 const ENDUNGEN = new Set([".html", ".css", ".js", ".txt", ".json"]);
 
 /** In Anführungszeichen (', ", Backtick) eingeschlossene Pfade */
