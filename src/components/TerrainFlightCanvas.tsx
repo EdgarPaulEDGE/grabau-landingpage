@@ -3,6 +3,10 @@
 import { useEffect, useRef, type MutableRefObject } from "react";
 import * as THREE from "three";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
+import { EffectComposer } from "three/examples/jsm/postprocessing/EffectComposer.js";
+import { RenderPass } from "three/examples/jsm/postprocessing/RenderPass.js";
+import { UnrealBloomPass } from "three/examples/jsm/postprocessing/UnrealBloomPass.js";
+import { OutputPass } from "three/examples/jsm/postprocessing/OutputPass.js";
 
 /**
  * Scroll-gescrubbte Kamerafahrt über echtes Gelände im WFL-Nachtmodell-Look:
@@ -56,6 +60,7 @@ function terrainMaterial(
   minorStep: number,
   majorStep: number,
   tex: THREE.Texture | null,
+  detail?: THREE.Texture | null,
 ): THREE.ShaderMaterial {
   return new THREE.ShaderMaterial({
     uniforms: {
@@ -69,6 +74,11 @@ function terrainMaterial(
       uGold: { value: new THREE.Color(GOLD) },
       uTex: { value: tex },
       uTexAmount: { value: tex ? 1 : 0 },
+      uDetail: { value: detail ?? tex },
+      uDetailAmount: { value: detail ? 1 : 0 },
+      // Detail-Ausschnitt in Weltmetern: Park-zentriert, 1400 x 1400 m
+      uDetailMin: { value: new THREE.Vector2(-700, -700) },
+      uDetailInv: { value: 1 / 1400 },
     },
     vertexShader: /* glsl */ `
       attribute float elev;
@@ -77,11 +87,13 @@ function terrainMaterial(
       varying float vElev;
       varying float vDist;
       varying vec2 vUv;
+      varying vec2 vXZ;
       void main() {
         vColor = color;
         vNormal = normal;
         vElev = elev;
         vUv = uv;
+        vXZ = position.xz;
         vec4 mv = modelViewMatrix * vec4(position, 1.0);
         vDist = -mv.z;
         gl_Position = projectionMatrix * mv;
@@ -98,11 +110,16 @@ function terrainMaterial(
       uniform vec3 uGold;
       uniform sampler2D uTex;
       uniform float uTexAmount;
+      uniform sampler2D uDetail;
+      uniform float uDetailAmount;
+      uniform vec2 uDetailMin;
+      uniform float uDetailInv;
       varying vec3 vColor;
       varying vec3 vNormal;
       varying float vElev;
       varying float vDist;
       varying vec2 vUv;
+      varying vec2 vXZ;
 
       // Höhenlinie: Abstand zur nächsten Isolinie in Pixeln (fwidth-normiert)
       float contour(float h, float s, float w) {
@@ -114,8 +131,16 @@ function terrainMaterial(
         vec3 n = normalize(vNormal);
         float diff = max(dot(n, uSunDir), 0.0);
 
-        // Luftbild mit Abendlicht-Grading: abdunkeln, wärmen, entsättigen
         vec3 tex = texture2D(uTex, vUv).rgb;
+
+        // Hochauflösender Ausschnitt um den Park, weich eingeblendet
+        vec2 duv = (vXZ - uDetailMin) * uDetailInv;
+        float dm = smoothstep(0.0, 0.06, duv.x) * smoothstep(0.0, 0.06, 1.0 - duv.x)
+                 * smoothstep(0.0, 0.06, duv.y) * smoothstep(0.0, 0.06, 1.0 - duv.y);
+        vec3 dtex = texture2D(uDetail, vec2(duv.x, 1.0 - duv.y)).rgb;
+        tex = mix(tex, dtex, dm * uDetailAmount);
+
+        // Abendlicht-Grading: abdunkeln, wärmen, entsättigen
         float luma = dot(tex, vec3(0.299, 0.587, 0.114));
         tex = mix(tex, vec3(luma), 0.24);
         tex *= vec3(1.08, 0.9, 0.72) * 0.62;
@@ -140,6 +165,80 @@ function terrainMaterial(
     vertexColors: true,
     transparent: true,
   });
+}
+
+/**
+ * Kronendecke: kompaktes Grid-Mesh nur über Vegetationszellen. Die Höhen
+ * stammen aus bDOM minus DGM, die Textur ist dasselbe Luftbild — die
+ * fotografierten Baumkronen werden also physisch angehoben.
+ */
+function buildCanopy(
+  canopy: Uint8Array,
+  grid: number,
+  cell: number,
+  x0: number,
+  z0: number,
+  groundY: (x: number, z: number) => number,
+  material: THREE.ShaderMaterial,
+  stride: number,
+): THREE.Mesh | null {
+  const G = Math.floor((grid - 1) / stride) + 1;
+  const at = (rr: number, cc: number) =>
+    canopy[Math.min(grid - 1, rr * stride) * grid + Math.min(grid - 1, cc * stride)];
+  // Zellen mit Vegetation oder Vegetations-Nachbarn bekommen einen Vertex
+  const vid = new Int32Array(G * G).fill(-1);
+  let count = 0;
+  for (let r = 0; r < G; r++) {
+    for (let c = 0; c < G; c++) {
+      let keep = at(r, c) > 0;
+      if (!keep) {
+        keep =
+          (r > 0 && at(r - 1, c) > 0) || (r < G - 1 && at(r + 1, c) > 0) ||
+          (c > 0 && at(r, c - 1) > 0) || (c < G - 1 && at(r, c + 1) > 0);
+      }
+      if (keep) vid[r * G + c] = count++;
+    }
+  }
+  if (count === 0) return null;
+  const pos = new Float32Array(count * 3);
+  const col = new Float32Array(count * 3);
+  const elev = new Float32Array(count);
+  const uv = new Float32Array(count * 2);
+  const size = grid * cell;
+  for (let r = 0; r < G; r++) {
+    for (let c = 0; c < G; c++) {
+      const id = vid[r * G + c];
+      if (id < 0) continue;
+      const x = x0 + Math.min(grid - 1, c * stride) * cell + cell / 2;
+      const z = z0 + Math.min(grid - 1, r * stride) * cell + cell / 2;
+      const h = at(r, c) / 4;
+      pos[id * 3] = x;
+      pos[id * 3 + 1] = groundY(x, z) + h * EX + 0.4;
+      pos[id * 3 + 2] = z;
+      elev[id] = h;
+      uv[id * 2] = (x - x0) / size;
+      uv[id * 2 + 1] = 1 - (z - z0) / size;
+      // Fallback-Farbe ohne Textur: dunkles Grün
+      col[id * 3] = 0.16; col[id * 3 + 1] = 0.2; col[id * 3 + 2] = 0.12;
+    }
+  }
+  const idx: number[] = [];
+  for (let r = 0; r < G - 1; r++) {
+    for (let c = 0; c < G - 1; c++) {
+      const a = vid[r * G + c], b = vid[r * G + c + 1];
+      const d = vid[(r + 1) * G + c], e = vid[(r + 1) * G + c + 1];
+      if (a < 0 || b < 0 || d < 0 || e < 0) continue;
+      idx.push(a, d, b, b, d, e);
+    }
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute("position", new THREE.BufferAttribute(pos, 3));
+  geo.setAttribute("color", new THREE.BufferAttribute(col, 3));
+  geo.setAttribute("elev", new THREE.BufferAttribute(elev, 1));
+  geo.setAttribute("uv", new THREE.BufferAttribute(uv, 2));
+  geo.setIndex(idx);
+  geo.computeVertexNormals();
+  return new THREE.Mesh(geo, material);
 }
 
 /** Geländefläche als indiziertes Grid mit Höhenfarbrampe und Höhen-Attribut. */
@@ -317,14 +416,17 @@ export default function TerrainFlightCanvas({
             },
             () => null, // ohne Luftbild fällt der Shader auf den Tusche-Grund zurück
           );
-        const [farBuf, nearBuf, farScene, nearScene, farTex, nearTex] = await Promise.all([
-          fetch("/terrain/far.bin").then((r) => r.arrayBuffer()),
-          fetch("/terrain/near.bin").then((r) => r.arrayBuffer()),
-          fetch("/terrain/far-scene.json").then((r) => r.json()),
-          fetch("/terrain/near-scene.json").then((r) => r.json()),
-          loadTex("/terrain/far-tex.jpg"),
-          loadTex("/terrain/near-tex.jpg"),
-        ]);
+        const [farBuf, nearBuf, canopyBuf, farScene, nearScene, farTex, nearTex, detailTex] =
+          await Promise.all([
+            fetch("/terrain/far.bin").then((r) => r.arrayBuffer()),
+            fetch("/terrain/near.bin").then((r) => r.arrayBuffer()),
+            fetch("/terrain/canopy.bin").then((r) => r.arrayBuffer()).catch(() => null),
+            fetch("/terrain/far-scene.json").then((r) => r.json()),
+            fetch("/terrain/near-scene.json").then((r) => r.json()),
+            loadTex("/terrain/far-tex.jpg"),
+            loadTex("/terrain/near-tex.jpg"),
+            loadTex("/terrain/detail-tex.jpg"),
+          ]);
         if (disposed) return;
 
         const isMobile = window.innerWidth < 768;
@@ -340,7 +442,7 @@ export default function TerrainFlightCanvas({
 
         // Schärfe bei flachen Blickwinkeln (Luftbild-Texturen)
         const aniso = Math.min(8, renderer.capabilities.getMaxAnisotropy());
-        for (const t of [farTex, nearTex]) if (t) t.anisotropy = aniso;
+        for (const t of [farTex, nearTex, detailTex]) if (t) t.anisotropy = aniso;
 
         const scene = new THREE.Scene();
         // Himmel im Farbklima der Seite: Nacht oben, warmer Schimmer am Horizont
@@ -360,6 +462,20 @@ export default function TerrainFlightCanvas({
         scene.fog = new THREE.Fog(FOG, 3200, 26000);
 
         const camera = new THREE.PerspectiveCamera(50, 1, 4, 60000);
+
+        // Bloom auf den hellsten Bildstellen (goldene Straßen/Konturen/Sonnenglanz).
+        // Schwelle bewusst hoch, damit der Effekt eine Signatur bleibt statt
+        // die gesamte Landschaft zu überstrahlen. Auf Mobile ausgelassen
+        // (Kosten eines zweiten Offscreen-Renders bei begrenztem GPU-Budget).
+        let composer: EffectComposer | null = null;
+        if (!isMobile) {
+          composer = new EffectComposer(renderer);
+          composer.addPass(new RenderPass(scene, camera));
+          const bloom = new UnrealBloomPass(new THREE.Vector2(1, 1), 0.7, 0.4, 0.72);
+          composer.addPass(bloom);
+          composer.addPass(new OutputPass());
+          disposables.push({ dispose: () => composer!.dispose() });
+        }
         // Lichter für Lambert-Materialien (Gebäude); Gelände beleuchtet der Shader
         scene.add(new THREE.HemisphereLight(0x4a3a48, 0x241a14, 1.2));
         const sun = new THREE.DirectionalLight(0xffd9a0, 1.8);
@@ -383,7 +499,7 @@ export default function TerrainFlightCanvas({
         disposables.push(farTerrain.geometry, farMat);
 
         const FAR_STYLE: Record<string, [number, number, number]> = {
-          a24: [42, 8, 0xf0c268], b207: [30, 7, 0xddb05e],
+          a24: [42, 8, 0xffdf9e], b207: [30, 7, 0xf5cd85],
           bundes: [22, 6, 0x9b8050], neben: [13, 5, 0x635642], bahn: [7, 5, 0x8a8a92],
         };
         const farRoads = new THREE.Group();
@@ -412,7 +528,7 @@ export default function TerrainFlightCanvas({
           [32, new THREE.Color(0x2d2124)], [43, new THREE.Color(0x3a2c2a)],
           [54, new THREE.Color(0x483830)],
         ];
-        const nearMatT = terrainMaterial(2, 10, nearTex);
+        const nearMatT = terrainMaterial(2, 10, nearTex, detailTex);
         const nearTerrain = buildTerrain(
           nearH, nf.rows, nf.cols, nx, nz, nearRamp, NEAR_LIFT, stride, nearMatT,
         );
@@ -421,7 +537,7 @@ export default function TerrainFlightCanvas({
         disposables.push(nearTerrain.geometry, nearMatT);
 
         const NEAR_STYLE: Record<string, [number, number, number]> = {
-          b207: [14, 2.6, 0xddb05e], tert: [9, 2.4, 0x9b8050],
+          b207: [14, 2.6, 0xf5cd85], tert: [9, 2.4, 0x9b8050],
           wohn: [6.5, 2.2, 0x746550], service: [4.5, 2.1, 0x5c5242], track: [3, 2.0, 0x484238],
         };
         for (const r of nearScene.roads) {
@@ -430,7 +546,8 @@ export default function TerrainFlightCanvas({
           if (m) { m.renderOrder = 2; nearGroup.add(m); disposables.push(m.geometry); }
         }
 
-        // Gebäude zu einer Geometrie zusammenfassen (ein Draw-Call)
+        // Gebäude zu einer Geometrie zusammenfassen (ein Draw-Call).
+        // Jedes Gebäude trägt seine echte Dachfarbe aus dem Luftbild.
         {
           const geos: THREE.BufferGeometry[] = [];
           for (const b of nearScene.buildings) {
@@ -442,6 +559,15 @@ export default function TerrainFlightCanvas({
             const g = new THREE.ExtrudeGeometry(shape, { depth: b.h * EX, bevelEnabled: false });
             g.rotateX(-Math.PI / 2);
             g.translate(0, base, 0);
+            // Dachfarbe mit Abend-Grading als konstantes Farb-Attribut
+            const rc = b.c ?? [120, 110, 100];
+            const cr = (rc[0] / 255) * 0.75, cg = (rc[1] / 255) * 0.66, cb = (rc[2] / 255) * 0.56;
+            const n = g.attributes.position.count;
+            const ca = new Float32Array(n * 3);
+            for (let i = 0; i < n; i++) {
+              ca[i * 3] = cr; ca[i * 3 + 1] = cg; ca[i * 3 + 2] = cb;
+            }
+            g.setAttribute("color", new THREE.BufferAttribute(ca, 3));
             geos.push(g);
           }
           const merged = mergeGeometries(geos, false);
@@ -450,11 +576,27 @@ export default function TerrainFlightCanvas({
             merged.computeVertexNormals();
             const mesh = new THREE.Mesh(
               merged,
-              new THREE.MeshLambertMaterial({ color: 0x51434a, transparent: true }),
+              new THREE.MeshLambertMaterial({ vertexColors: true, transparent: true }),
             );
             mesh.renderOrder = 2;
             nearGroup.add(mesh);
             disposables.push(merged);
+          }
+        }
+
+        // Kronendecke: echte Baum- und Knickhöhen (bDOM minus DGM),
+        // texturiert mit denselben Luftbildern wie der Boden
+        if (canopyBuf) {
+          const canopyMat = terrainMaterial(1e6, 1e6, nearTex, detailTex);
+          const canopyMesh = buildCanopy(
+            new Uint8Array(canopyBuf), 1500, 2, nf.x0, nf.z0,
+            (x, z) => nearSample(x, z) * EX + NEAR_LIFT,
+            canopyMat, stride,
+          );
+          if (canopyMesh) {
+            canopyMesh.renderOrder = 2;
+            nearGroup.add(canopyMesh);
+            disposables.push(canopyMesh.geometry, canopyMat);
           }
         }
 
@@ -537,6 +679,7 @@ export default function TerrainFlightCanvas({
           if (!renderer) return;
           const w = host.clientWidth, h = host.clientHeight;
           renderer.setSize(w, h);
+          composer?.setSize(w, h);
           camera.aspect = w / h;
           camera.updateProjectionMatrix();
           lastP = -1;
@@ -549,6 +692,20 @@ export default function TerrainFlightCanvas({
         const io = new IntersectionObserver(([e]) => { visible = e.isIntersecting; });
         io.observe(host);
         disposables.push({ dispose: () => io.disconnect() });
+
+        // Sanftes Rollen in den Kurven (Grad, an Stützstellen des Pfads)
+        const ROLL_T = [0, 0.3, 0.55, 0.8, 1];
+        const ROLL_V = [0, -2.6, 2.9, -1.6, 0];
+        const rollAt = (p: number) => {
+          for (let i = 1; i < ROLL_T.length; i++) {
+            if (p <= ROLL_T[i]) {
+              const t = (p - ROLL_T[i - 1]) / (ROLL_T[i] - ROLL_T[i - 1]);
+              const s = t * t * (3 - 2 * t);
+              return ((ROLL_V[i - 1] + (ROLL_V[i] - ROLL_V[i - 1]) * s) * Math.PI) / 180;
+            }
+          }
+          return 0;
+        };
 
         let lastP = -1;
         const pos = new THREE.Vector3();
@@ -564,6 +721,7 @@ export default function TerrainFlightCanvas({
           tgtCurve.getPoint(p, tgt);
           camera.position.copy(pos);
           camera.lookAt(tgt);
+          camera.rotateZ(rollAt(p));
 
           const nearO = smooth(p, 0.26, 0.5);
           const farO = 1 - smooth(p, 0.34, 0.6);
@@ -579,7 +737,8 @@ export default function TerrainFlightCanvas({
           // Park-Label bei der Landung ausblenden (Text-Schritt übernimmt)
           parkLabel.material.opacity = nearO * (1 - smooth(p, 0.78, 0.92));
 
-          renderer.render(scene, camera);
+          if (composer) composer.render();
+          else renderer.render(scene, camera);
         };
 
         resize();
