@@ -47,8 +47,16 @@ function makeSampler(
   };
 }
 
-/** Gelände-Shader: Tusche-Grund, warmes Streiflicht, goldene Höhenlinien. */
-function terrainMaterial(minorStep: number, majorStep: number): THREE.ShaderMaterial {
+/**
+ * Gelände-Shader: echtes Luftbild mit Abendlicht-Grading als Basis,
+ * warmes Streiflicht aus dem Relief, dezente goldene Höhenlinien darüber.
+ * Ohne Textur (uTexAmount 0) fällt er auf den Tusche-Grund zurück.
+ */
+function terrainMaterial(
+  minorStep: number,
+  majorStep: number,
+  tex: THREE.Texture | null,
+): THREE.ShaderMaterial {
   return new THREE.ShaderMaterial({
     uniforms: {
       uSunDir: { value: new THREE.Vector3(-0.83, 0.48, 0.28).normalize() },
@@ -59,6 +67,8 @@ function terrainMaterial(minorStep: number, majorStep: number): THREE.ShaderMate
       uMinor: { value: minorStep },
       uMajor: { value: majorStep },
       uGold: { value: new THREE.Color(GOLD) },
+      uTex: { value: tex },
+      uTexAmount: { value: tex ? 1 : 0 },
     },
     vertexShader: /* glsl */ `
       attribute float elev;
@@ -66,10 +76,12 @@ function terrainMaterial(minorStep: number, majorStep: number): THREE.ShaderMate
       varying vec3 vNormal;
       varying float vElev;
       varying float vDist;
+      varying vec2 vUv;
       void main() {
         vColor = color;
         vNormal = normal;
         vElev = elev;
+        vUv = uv;
         vec4 mv = modelViewMatrix * vec4(position, 1.0);
         vDist = -mv.z;
         gl_Position = projectionMatrix * mv;
@@ -84,10 +96,13 @@ function terrainMaterial(minorStep: number, majorStep: number): THREE.ShaderMate
       uniform float uMinor;
       uniform float uMajor;
       uniform vec3 uGold;
+      uniform sampler2D uTex;
+      uniform float uTexAmount;
       varying vec3 vColor;
       varying vec3 vNormal;
       varying float vElev;
       varying float vDist;
+      varying vec2 vUv;
 
       // Höhenlinie: Abstand zur nächsten Isolinie in Pixeln (fwidth-normiert)
       float contour(float h, float s, float w) {
@@ -98,12 +113,22 @@ function terrainMaterial(minorStep: number, majorStep: number): THREE.ShaderMate
       void main() {
         vec3 n = normalize(vNormal);
         float diff = max(dot(n, uSunDir), 0.0);
-        vec3 col = vColor * (0.72 + 1.35 * diff * vec3(1.0, 0.87, 0.66));
 
-        // Feine Linien nahe der Kamera, kräftige auch in der Ferne
+        // Luftbild mit Abendlicht-Grading: abdunkeln, wärmen, entsättigen
+        vec3 tex = texture2D(uTex, vUv).rgb;
+        float luma = dot(tex, vec3(0.299, 0.587, 0.114));
+        tex = mix(tex, vec3(luma), 0.24);
+        tex *= vec3(1.08, 0.9, 0.72) * 0.62;
+
+        vec3 base = mix(vColor, tex, uTexAmount);
+        vec3 col = base * (0.62 + 1.1 * diff * vec3(1.0, 0.88, 0.7));
+
+        // Vermessungs-Signatur: feine Linien nah, kräftige auch fern
         float nearFade = 1.0 - smoothstep(uFogNear * 0.4, uFogNear * 1.1, vDist);
-        col = mix(col, uGold * 0.85, contour(vElev, uMinor, 1.1) * 0.24 * nearFade);
-        col = mix(col, uGold, contour(vElev, uMajor, 1.3) * 0.5);
+        float minorA = mix(0.24, 0.1, uTexAmount);
+        float majorA = mix(0.5, 0.22, uTexAmount);
+        col = mix(col, uGold * 0.85, contour(vElev, uMinor, 1.1) * minorA * nearFade);
+        col = mix(col, uGold, contour(vElev, uMajor, 1.3) * majorA);
 
         float fog = smoothstep(uFogNear, uFogFar, vDist);
         col = mix(col, uFogColor, fog);
@@ -134,6 +159,7 @@ function buildTerrain(
   const pos = new Float32Array(R * C * 3);
   const col = new Float32Array(R * C * 3);
   const elev = new Float32Array(R * C);
+  const uv = new Float32Array(R * C * 2);
   const color = (hm: number): THREE.Color => {
     for (let i = 1; i < ramp.length; i++) {
       if (hm <= ramp[i][0]) {
@@ -153,6 +179,8 @@ function buildTerrain(
       pos[k * 3 + 1] = hm * EX + yLift;
       pos[k * 3 + 2] = zAt(r);
       elev[k] = hm;
+      uv[k * 2] = c / (cols - 1);
+      uv[k * 2 + 1] = 1 - r / (rows - 1); // Zeile 0 = Norden = Bildoberkante
       const cl = color(hm);
       col[k * 3] = cl.r; col[k * 3 + 1] = cl.g; col[k * 3 + 2] = cl.b;
     }
@@ -170,6 +198,7 @@ function buildTerrain(
   geo.setAttribute("position", new THREE.BufferAttribute(pos, 3));
   geo.setAttribute("color", new THREE.BufferAttribute(col, 3));
   geo.setAttribute("elev", new THREE.BufferAttribute(elev, 1));
+  geo.setAttribute("uv", new THREE.BufferAttribute(uv, 2));
   geo.setIndex(new THREE.BufferAttribute(idx, 1));
   geo.computeVertexNormals();
   return new THREE.Mesh(geo, material);
@@ -278,11 +307,23 @@ export default function TerrainFlightCanvas({
 
     (async () => {
       try {
-        const [farBuf, nearBuf, farScene, nearScene] = await Promise.all([
+        const loader = new THREE.TextureLoader();
+        const loadTex = (url: string) =>
+          loader.loadAsync(url).then(
+            (t) => {
+              t.colorSpace = THREE.SRGBColorSpace;
+              t.wrapS = t.wrapT = THREE.ClampToEdgeWrapping;
+              return t;
+            },
+            () => null, // ohne Luftbild fällt der Shader auf den Tusche-Grund zurück
+          );
+        const [farBuf, nearBuf, farScene, nearScene, farTex, nearTex] = await Promise.all([
           fetch("/terrain/far.bin").then((r) => r.arrayBuffer()),
           fetch("/terrain/near.bin").then((r) => r.arrayBuffer()),
           fetch("/terrain/far-scene.json").then((r) => r.json()),
           fetch("/terrain/near-scene.json").then((r) => r.json()),
+          loadTex("/terrain/far-tex.jpg"),
+          loadTex("/terrain/near-tex.jpg"),
         ]);
         if (disposed) return;
 
@@ -296,6 +337,10 @@ export default function TerrainFlightCanvas({
         renderer.domElement.style.position = "absolute";
         renderer.domElement.style.inset = "0";
         host.appendChild(renderer.domElement);
+
+        // Schärfe bei flachen Blickwinkeln (Luftbild-Texturen)
+        const aniso = Math.min(8, renderer.capabilities.getMaxAnisotropy());
+        for (const t of [farTex, nearTex]) if (t) t.anisotropy = aniso;
 
         const scene = new THREE.Scene();
         // Himmel im Farbklima der Seite: Nacht oben, warmer Schimmer am Horizont
@@ -332,7 +377,7 @@ export default function TerrainFlightCanvas({
           [55, new THREE.Color(0x3d2f2b)], [80, new THREE.Color(0x4a3a30)],
           [109, new THREE.Color(0x584636)],
         ];
-        const farMat = terrainMaterial(10, 50);
+        const farMat = terrainMaterial(10, 50, farTex);
         const farTerrain = buildTerrain(farH, ff.rows, ff.cols, fx, fz, farRamp, 0, stride, farMat);
         scene.add(farTerrain);
         disposables.push(farTerrain.geometry, farMat);
@@ -367,7 +412,7 @@ export default function TerrainFlightCanvas({
           [32, new THREE.Color(0x2d2124)], [43, new THREE.Color(0x3a2c2a)],
           [54, new THREE.Color(0x483830)],
         ];
-        const nearMatT = terrainMaterial(2, 10);
+        const nearMatT = terrainMaterial(2, 10, nearTex);
         const nearTerrain = buildTerrain(
           nearH, nf.rows, nf.cols, nx, nz, nearRamp, NEAR_LIFT, stride, nearMatT,
         );
