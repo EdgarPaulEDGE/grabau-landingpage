@@ -5,6 +5,7 @@ import Stats from "@/components/Stats";
 import ProblemSolution from "@/components/ProblemSolution";
 import Location from "@/components/Location";
 import KorridorScroll from "@/components/KorridorScroll";
+import TerrainFlight from "@/components/TerrainFlight";
 import SitePlan from "@/components/SitePlan";
 import Industries from "@/components/Industries";
 import Process from "@/components/Process";
@@ -25,6 +26,7 @@ export default function Home() {
         <Stats />
         <Location />
         <ProblemSolution />
+        <TerrainFlight />
         <SitePlan />
         <FactsData />
         <Industries />
