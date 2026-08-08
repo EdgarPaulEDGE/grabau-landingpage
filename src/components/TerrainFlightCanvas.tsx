@@ -5,17 +5,22 @@ import * as THREE from "three";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 
 /**
- * Scroll-gescrubbte Kamerafahrt über echtes Gelände.
+ * Scroll-gescrubbte Kamerafahrt über echtes Gelände im WFL-Nachtmodell-Look:
+ * dunkles Tusche-Gelände mit goldenen Höhenlinien (Vermessungskarten-Ästhetik),
+ * goldene Verkehrsachsen, roter Park. Passend zu "Die Achse" und Standortplan.
  *
  * Zwei Datenebenen im selben lokalen Rahmen (Ursprung = Park-Zentrum):
- * - Fernsicht: Copernicus GLO-30 (30-m-Raster, 15 x 18 km) mit Verkehrsachsen
- * - Nahzone: LiDAR-DGM1 des Landes SH (4-m-Raster, 3 x 3 km) mit Gebäuden,
- *   Straßen und der markierten Parkfläche
+ * - Fernsicht: Copernicus GLO-30 (30-m-Raster, 15 x 18 km)
+ * - Nahzone: LiDAR-DGM1 SH (4-m-Raster, 3 x 3 km) mit Gebäuden und Straßen
  * Beim Anflug blendet die Fahrt von der Fern- auf die Nah-Ebene über.
  * Gerendert wird nur, wenn sich der Scroll-Fortschritt ändert.
  */
 
 const EX = 1.6; // vertikale Überhöhung (Sweet Spot aus dem Machbarkeitstest)
+
+const NIGHT = 0x1a1113;
+const FOG = 0x251719;
+const GOLD = 0xc5a572;
 
 type Frame = { rows: number; cols: number; x0: number; z0: number };
 type FarFrame = Frame & { x1: number; z1: number };
@@ -29,7 +34,6 @@ function makeSampler(
   xAt: (c: number) => number,
   zAt: (r: number) => number,
 ) {
-  // Umkehrfunktionen aus zwei Stützstellen (lineares Raster)
   const cOf = (x: number) => (x - xAt(0)) / (xAt(1) - xAt(0));
   const rOf = (z: number) => (z - zAt(0)) / (zAt(1) - zAt(0));
   return (x: number, z: number): number => {
@@ -43,7 +47,77 @@ function makeSampler(
   };
 }
 
-/** Geländefläche als indiziertes Grid mit Höhenfarbrampe. */
+/** Gelände-Shader: Tusche-Grund, warmes Streiflicht, goldene Höhenlinien. */
+function terrainMaterial(minorStep: number, majorStep: number): THREE.ShaderMaterial {
+  return new THREE.ShaderMaterial({
+    uniforms: {
+      uSunDir: { value: new THREE.Vector3(-0.83, 0.48, 0.28).normalize() },
+      uOpacity: { value: 1 },
+      uFogColor: { value: new THREE.Color(FOG) },
+      uFogNear: { value: 3200 },
+      uFogFar: { value: 26000 },
+      uMinor: { value: minorStep },
+      uMajor: { value: majorStep },
+      uGold: { value: new THREE.Color(GOLD) },
+    },
+    vertexShader: /* glsl */ `
+      attribute float elev;
+      varying vec3 vColor;
+      varying vec3 vNormal;
+      varying float vElev;
+      varying float vDist;
+      void main() {
+        vColor = color;
+        vNormal = normal;
+        vElev = elev;
+        vec4 mv = modelViewMatrix * vec4(position, 1.0);
+        vDist = -mv.z;
+        gl_Position = projectionMatrix * mv;
+      }
+    `,
+    fragmentShader: /* glsl */ `
+      uniform vec3 uSunDir;
+      uniform float uOpacity;
+      uniform vec3 uFogColor;
+      uniform float uFogNear;
+      uniform float uFogFar;
+      uniform float uMinor;
+      uniform float uMajor;
+      uniform vec3 uGold;
+      varying vec3 vColor;
+      varying vec3 vNormal;
+      varying float vElev;
+      varying float vDist;
+
+      // Höhenlinie: Abstand zur nächsten Isolinie in Pixeln (fwidth-normiert)
+      float contour(float h, float s, float w) {
+        float g = abs(fract(h / s - 0.5) - 0.5) * s / max(fwidth(h), 1e-5);
+        return 1.0 - min(g / w, 1.0);
+      }
+
+      void main() {
+        vec3 n = normalize(vNormal);
+        float diff = max(dot(n, uSunDir), 0.0);
+        vec3 col = vColor * (0.72 + 1.35 * diff * vec3(1.0, 0.87, 0.66));
+
+        // Feine Linien nahe der Kamera, kräftige auch in der Ferne
+        float nearFade = 1.0 - smoothstep(uFogNear * 0.4, uFogNear * 1.1, vDist);
+        col = mix(col, uGold * 0.85, contour(vElev, uMinor, 1.1) * 0.24 * nearFade);
+        col = mix(col, uGold, contour(vElev, uMajor, 1.3) * 0.5);
+
+        float fog = smoothstep(uFogNear, uFogFar, vDist);
+        col = mix(col, uFogColor, fog);
+        gl_FragColor = vec4(col, uOpacity);
+        #include <tonemapping_fragment>
+        #include <colorspace_fragment>
+      }
+    `,
+    vertexColors: true,
+    transparent: true,
+  });
+}
+
+/** Geländefläche als indiziertes Grid mit Höhenfarbrampe und Höhen-Attribut. */
 function buildTerrain(
   h: Int16Array,
   rows: number,
@@ -53,11 +127,13 @@ function buildTerrain(
   ramp: [number, THREE.Color][],
   yLift: number,
   stride: number,
+  material: THREE.ShaderMaterial,
 ): THREE.Mesh {
   const R = Math.floor((rows - 1) / stride) + 1;
   const C = Math.floor((cols - 1) / stride) + 1;
   const pos = new Float32Array(R * C * 3);
   const col = new Float32Array(R * C * 3);
+  const elev = new Float32Array(R * C);
   const color = (hm: number): THREE.Color => {
     for (let i = 1; i < ramp.length; i++) {
       if (hm <= ramp[i][0]) {
@@ -76,6 +152,7 @@ function buildTerrain(
       pos[k * 3] = xAt(c);
       pos[k * 3 + 1] = hm * EX + yLift;
       pos[k * 3 + 2] = zAt(r);
+      elev[k] = hm;
       const cl = color(hm);
       col[k * 3] = cl.r; col[k * 3 + 1] = cl.g; col[k * 3 + 2] = cl.b;
     }
@@ -92,9 +169,10 @@ function buildTerrain(
   const geo = new THREE.BufferGeometry();
   geo.setAttribute("position", new THREE.BufferAttribute(pos, 3));
   geo.setAttribute("color", new THREE.BufferAttribute(col, 3));
+  geo.setAttribute("elev", new THREE.BufferAttribute(elev, 1));
   geo.setIndex(new THREE.BufferAttribute(idx, 1));
   geo.computeVertexNormals();
-  return new THREE.Mesh(geo, new THREE.MeshLambertMaterial({ vertexColors: true }));
+  return new THREE.Mesh(geo, material);
 }
 
 /** Straßen-Polylinie als Band, auf das Gelände gelegt. */
@@ -159,8 +237,10 @@ function makeLabel(
   c.fillStyle = colorCss;
   c.textBaseline = "middle";
   c.fillText(text, 20, 48);
+  const tex = new THREE.CanvasTexture(cv);
+  tex.colorSpace = THREE.SRGBColorSpace;
   const sp = new THREE.Sprite(
-    new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(cv), depthTest: false, transparent: true }),
+    new THREE.SpriteMaterial({ map: tex, depthTest: false, transparent: true }),
   );
   sp.scale.set((size * (cv.width / cv.height)) / 6.5, (size / 6.5) * 1.5, 1);
   sp.position.set(x, y, z);
@@ -171,6 +251,13 @@ const smooth = (t: number, a: number, b: number) => {
   const s = Math.max(0, Math.min(1, (t - a) / (b - a)));
   return s * s * (3 - 2 * s);
 };
+
+/** Deckkraft setzen, egal ob Standard- oder Shader-Material. */
+function setOpacity(m: THREE.Material, value: number) {
+  const sm = m as THREE.ShaderMaterial;
+  if (sm.uniforms && sm.uniforms.uOpacity) sm.uniforms.uOpacity.value = value;
+  else (m as THREE.MeshBasicMaterial).opacity = value;
+}
 
 export default function TerrainFlightCanvas({
   progressRef,
@@ -205,48 +292,54 @@ export default function TerrainFlightCanvas({
         renderer = new THREE.WebGLRenderer({ antialias: !isMobile, powerPreference: "high-performance" });
         renderer.setPixelRatio(Math.min(window.devicePixelRatio, isMobile ? 1.25 : 1.6));
         renderer.toneMapping = THREE.ACESFilmicToneMapping;
-        renderer.toneMappingExposure = 1.35;
+        renderer.toneMappingExposure = 1.3;
         renderer.domElement.style.position = "absolute";
         renderer.domElement.style.inset = "0";
         host.appendChild(renderer.domElement);
 
         const scene = new THREE.Scene();
+        // Himmel im Farbklima der Seite: Nacht oben, warmer Schimmer am Horizont
         const skyCv = document.createElement("canvas");
         skyCv.width = 2; skyCv.height = 256;
         const sctx = skyCv.getContext("2d")!;
         const grad = sctx.createLinearGradient(0, 0, 0, 256);
-        grad.addColorStop(0, "#120e1a");
-        grad.addColorStop(0.55, "#241a22");
-        grad.addColorStop(1, "#4a3128");
+        grad.addColorStop(0, "#0f0a0c");
+        grad.addColorStop(0.62, "#1a1113");
+        grad.addColorStop(0.9, "#2a1b16");
+        grad.addColorStop(1, "#382413");
         sctx.fillStyle = grad;
         sctx.fillRect(0, 0, 2, 256);
-        scene.background = new THREE.CanvasTexture(skyCv);
-        scene.fog = new THREE.Fog(0x241a20, 3200, 26000);
+        const skyTex = new THREE.CanvasTexture(skyCv);
+        skyTex.colorSpace = THREE.SRGBColorSpace;
+        scene.background = skyTex;
+        scene.fog = new THREE.Fog(FOG, 3200, 26000);
 
         const camera = new THREE.PerspectiveCamera(50, 1, 4, 60000);
-        scene.add(new THREE.HemisphereLight(0x4a4060, 0x2a2018, 1.35));
-        const sun = new THREE.DirectionalLight(0xffd9a0, 2.0);
-        sun.position.set(-9000, 5200, 3500);
+        // Lichter für Lambert-Materialien (Gebäude); Gelände beleuchtet der Shader
+        scene.add(new THREE.HemisphereLight(0x4a3a48, 0x241a14, 1.2));
+        const sun = new THREE.DirectionalLight(0xffd9a0, 1.8);
+        sun.position.set(-8300, 4800, 2800);
         scene.add(sun);
 
-        // ---- Fern-Ebene (Copernicus)
+        // ---- Fern-Ebene (Copernicus): Tusche-Grund, Konturen 10 m / 50 m
         const ff = farScene.frame as FarFrame;
         const farH = new Int16Array(farBuf);
         const fx = (c: number) => ff.x0 + ((ff.x1 - ff.x0) * c) / (ff.cols - 1);
         const fz = (r: number) => ff.z0 + ((ff.z1 - ff.z0) * r) / (ff.rows - 1);
         const farSample = makeSampler(farH, ff.rows, ff.cols, fx, fz);
         const farRamp: [number, THREE.Color][] = [
-          [6, new THREE.Color(0x28351f)], [25, new THREE.Color(0x3a4a26)],
-          [45, new THREE.Color(0x59572e)], [65, new THREE.Color(0x6e5c33)],
-          [85, new THREE.Color(0x82653c)], [109, new THREE.Color(0x9a7a4e)],
+          [6, new THREE.Color(0x241a1d)], [30, new THREE.Color(0x302326)],
+          [55, new THREE.Color(0x3d2f2b)], [80, new THREE.Color(0x4a3a30)],
+          [109, new THREE.Color(0x584636)],
         ];
-        const farTerrain = buildTerrain(farH, ff.rows, ff.cols, fx, fz, farRamp, 0, stride);
+        const farMat = terrainMaterial(10, 50);
+        const farTerrain = buildTerrain(farH, ff.rows, ff.cols, fx, fz, farRamp, 0, stride, farMat);
         scene.add(farTerrain);
-        disposables.push(farTerrain.geometry);
+        disposables.push(farTerrain.geometry, farMat);
 
         const FAR_STYLE: Record<string, [number, number, number]> = {
-          a24: [42, 8, 0xe3b76a], b207: [30, 7, 0xd0a055],
-          bundes: [22, 6, 0x8f7647], neben: [13, 5, 0x5c4f3c], bahn: [7, 5, 0x8a8a92],
+          a24: [42, 8, 0xf0c268], b207: [30, 7, 0xddb05e],
+          bundes: [22, 6, 0x9b8050], neben: [13, 5, 0x635642], bahn: [7, 5, 0x8a8a92],
         };
         const farRoads = new THREE.Group();
         for (const r of farScene.roads) {
@@ -258,11 +351,11 @@ export default function TerrainFlightCanvas({
 
         const farLabels = new THREE.Group();
         for (const l of farScene.labels) {
-          farLabels.add(makeLabel(l.t, l.x, l.z, farSample(l.x, l.z) * EX + 320, 620, "#e8dcbc"));
+          farLabels.add(makeLabel(l.t, l.x, l.z, farSample(l.x, l.z) * EX + 320, 620, "#efe3c6"));
         }
         scene.add(farLabels);
 
-        // ---- Nah-Ebene (LiDAR + OSM), leicht angehoben gegen Z-Fighting
+        // ---- Nah-Ebene (LiDAR + OSM): Konturen 2 m / 10 m
         const nf = nearScene.frame as NearFrame;
         const nearH = new Int16Array(nearBuf);
         const nx = (c: number) => nf.x0 + c * nf.cell + nf.cell / 2;
@@ -271,21 +364,25 @@ export default function TerrainFlightCanvas({
         const NEAR_LIFT = 1.4;
         const nearGroup = new THREE.Group();
         const nearRamp: [number, THREE.Color][] = [
-          [32, new THREE.Color(0x2e3d22)], [42, new THREE.Color(0x565430)],
-          [54, new THREE.Color(0x8a7146)],
+          [32, new THREE.Color(0x2d2124)], [43, new THREE.Color(0x3a2c2a)],
+          [54, new THREE.Color(0x483830)],
         ];
-        const nearTerrain = buildTerrain(nearH, nf.rows, nf.cols, nx, nz, nearRamp, NEAR_LIFT, stride);
+        const nearMatT = terrainMaterial(2, 10);
+        const nearTerrain = buildTerrain(
+          nearH, nf.rows, nf.cols, nx, nz, nearRamp, NEAR_LIFT, stride, nearMatT,
+        );
+        nearTerrain.renderOrder = 1;
         nearGroup.add(nearTerrain);
-        disposables.push(nearTerrain.geometry);
+        disposables.push(nearTerrain.geometry, nearMatT);
 
         const NEAR_STYLE: Record<string, [number, number, number]> = {
-          b207: [14, 2.6, 0xd0a055], tert: [9, 2.4, 0x8f7647],
-          wohn: [6.5, 2.2, 0x6b5c44], service: [4.5, 2.1, 0x544a3a], track: [3, 2.0, 0x453d31],
+          b207: [14, 2.6, 0xddb05e], tert: [9, 2.4, 0x9b8050],
+          wohn: [6.5, 2.2, 0x746550], service: [4.5, 2.1, 0x5c5242], track: [3, 2.0, 0x484238],
         };
         for (const r of nearScene.roads) {
           const [w, lift, color] = NEAR_STYLE[r.c];
           const m = ribbon(r.p, w, lift, color, nearSample);
-          if (m) { nearGroup.add(m); disposables.push(m.geometry); }
+          if (m) { m.renderOrder = 2; nearGroup.add(m); disposables.push(m.geometry); }
         }
 
         // Gebäude zu einer Geometrie zusammenfassen (ein Draw-Call)
@@ -308,8 +405,9 @@ export default function TerrainFlightCanvas({
             merged.computeVertexNormals();
             const mesh = new THREE.Mesh(
               merged,
-              new THREE.MeshLambertMaterial({ color: 0x4a4038, transparent: true }),
+              new THREE.MeshLambertMaterial({ color: 0x51434a, transparent: true }),
             );
+            mesh.renderOrder = 2;
             nearGroup.add(mesh);
             disposables.push(merged);
           }
@@ -329,10 +427,11 @@ export default function TerrainFlightCanvas({
           const fill = new THREE.Mesh(
             geo,
             new THREE.MeshBasicMaterial({
-              color: 0x971b22, transparent: true, opacity: 0.34,
+              color: 0xa8232c, transparent: true, opacity: 0.42,
               side: THREE.DoubleSide, depthWrite: false,
             }),
           );
+          fill.renderOrder = 3;
           nearGroup.add(fill);
           disposables.push(geo);
           const outlinePts = nearScene.park.map(
@@ -342,8 +441,9 @@ export default function TerrainFlightCanvas({
           const og = new THREE.BufferGeometry().setFromPoints([...outlinePts, outlinePts[0]]);
           const outline = new THREE.Line(
             og,
-            new THREE.LineBasicMaterial({ color: 0xe3b76a, transparent: true }),
+            new THREE.LineBasicMaterial({ color: 0xe0c084, transparent: true }),
           );
+          outline.renderOrder = 3;
           nearGroup.add(outline);
           disposables.push(og);
         }
@@ -356,7 +456,7 @@ export default function TerrainFlightCanvas({
         // ---- Kamerapfad (Catmull-Rom durch Position und Blickziel)
         const parkY = nearSample(0, 0) * EX;
         const posCurve = new THREE.CatmullRomCurve3([
-          new THREE.Vector3(7000, parkY + 6200, 10800),
+          new THREE.Vector3(5000, parkY + 4300, 7800),
           new THREE.Vector3(2600, parkY + 2300, 4300),
           new THREE.Vector3(900, parkY + 700, 1500),
           new THREE.Vector3(240, parkY + 230, 520),
@@ -370,7 +470,7 @@ export default function TerrainFlightCanvas({
           new THREE.Vector3(10, parkY + 1, -35),
         ]);
 
-        // Deckkraft-Sammlungen für die Überblendung
+        // Material-Sammlungen für die Überblendung
         const nearMats: THREE.Material[] = [];
         nearGroup.traverse((o) => {
           const mesh = o as THREE.Mesh;
@@ -383,19 +483,23 @@ export default function TerrainFlightCanvas({
         });
         farLabels.children.forEach((s) => farFadeMats.push((s as THREE.Sprite).material));
 
+        for (const m of nearMats) {
+          const basic = m as THREE.MeshBasicMaterial;
+          m.userData.baseOpacity = typeof basic.opacity === "number" ? basic.opacity : 1;
+        }
+
         const resize = () => {
           if (!renderer) return;
           const w = host.clientWidth, h = host.clientHeight;
           renderer.setSize(w, h);
           camera.aspect = w / h;
           camera.updateProjectionMatrix();
-          lastP = -1; // Neuzeichnen erzwingen
+          lastP = -1;
         };
         const ro = new ResizeObserver(resize);
         ro.observe(host);
         disposables.push({ dispose: () => ro.disconnect() });
 
-        // Nur rendern, wenn die Sektion sichtbar ist und sich etwas ändert
         let visible = true;
         const io = new IntersectionObserver(([e]) => { visible = e.isIntersecting; });
         io.observe(host);
@@ -420,25 +524,18 @@ export default function TerrainFlightCanvas({
           const farO = 1 - smooth(p, 0.34, 0.6);
           nearGroup.visible = nearO > 0.01;
           for (const m of nearMats) {
-            const base = "opacity" in m && (m as THREE.MeshBasicMaterial).userData.baseOpacity;
-            const b = typeof base === "number" ? base : 1;
-            (m as THREE.MeshBasicMaterial).opacity = nearO * b;
+            const b = typeof m.userData.baseOpacity === "number" ? m.userData.baseOpacity : 1;
+            setOpacity(m, nearO * b);
           }
           farRoads.visible = farO > 0.01;
           farLabels.visible = farO > 0.01;
-          for (const m of farFadeMats) (m as THREE.MeshBasicMaterial).opacity = farO;
+          for (const m of farFadeMats) setOpacity(m, farO);
 
           // Park-Label bei der Landung ausblenden (Text-Schritt übernimmt)
           parkLabel.material.opacity = nearO * (1 - smooth(p, 0.78, 0.92));
 
           renderer.render(scene, camera);
         };
-
-        // Grund-Deckkraft je Material merken (Parkfläche ist halbtransparent)
-        for (const m of nearMats) {
-          (m as THREE.MeshBasicMaterial).userData.baseOpacity =
-            (m as THREE.MeshBasicMaterial).opacity ?? 1;
-        }
 
         resize();
         tick();
