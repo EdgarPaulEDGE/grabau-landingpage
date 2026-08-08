@@ -445,17 +445,64 @@ export default function TerrainFlightCanvas({
         for (const t of [farTex, nearTex, detailTex]) if (t) t.anisotropy = aniso;
 
         const scene = new THREE.Scene();
-        // Himmel im Farbklima der Seite: Nacht oben, warmer Schimmer am Horizont
+        // Himmel im Farbklima der Seite: Sternennacht oben, goldener Horizont-Glanz
+        // unten, dünne Wolkenschleier davor. Ein 2D-Screenspace-Hintergrund statt
+        // einer Skybox — bewegt sich nicht mit der Kamera, was bei diesem eher
+        // linearen Flugpfad nicht auffällt und die schwarze Leere der ersten
+        // Fassung durch eine bewusst gestaltete Atmosphäre ersetzt.
+        const SKY_W = 1024, SKY_H = 640;
         const skyCv = document.createElement("canvas");
-        skyCv.width = 2; skyCv.height = 256;
+        skyCv.width = SKY_W; skyCv.height = SKY_H;
         const sctx = skyCv.getContext("2d")!;
-        const grad = sctx.createLinearGradient(0, 0, 0, 256);
-        grad.addColorStop(0, "#0f0a0c");
-        grad.addColorStop(0.62, "#1a1113");
-        grad.addColorStop(0.9, "#2a1b16");
-        grad.addColorStop(1, "#382413");
+        const grad = sctx.createLinearGradient(0, 0, 0, SKY_H);
+        grad.addColorStop(0, "#080507");
+        grad.addColorStop(0.5, "#150e10");
+        grad.addColorStop(0.8, "#241511");
+        grad.addColorStop(0.93, "#3a2013");
+        grad.addColorStop(1, "#4d2c15");
         sctx.fillStyle = grad;
-        sctx.fillRect(0, 0, 2, 256);
+        sctx.fillRect(0, 0, SKY_W, SKY_H);
+
+        // Goldener Horizontschimmer
+        sctx.save();
+        sctx.filter = "blur(46px)";
+        const hg = sctx.createRadialGradient(
+          SKY_W * 0.4, SKY_H * 0.98, 10, SKY_W * 0.4, SKY_H * 0.98, SKY_W * 0.6,
+        );
+        hg.addColorStop(0, "rgba(224,192,132,0.55)");
+        hg.addColorStop(1, "rgba(224,192,132,0)");
+        sctx.fillStyle = hg;
+        sctx.fillRect(0, SKY_H * 0.55, SKY_W, SKY_H * 0.45);
+        sctx.restore();
+
+        // Sterne, dichter zur Zenit-Seite, ausdünnend Richtung Horizont
+        for (let i = 0; i < 280; i++) {
+          const yf = Math.pow(Math.random(), 1.7);
+          const y = yf * SKY_H * 0.78;
+          const x = Math.random() * SKY_W;
+          const r = Math.random() < 0.12 ? 0.9 + Math.random() * 1.1 : 0.3 + Math.random() * 0.6;
+          const a = (1 - yf * 0.55) * (0.35 + Math.random() * 0.55);
+          sctx.beginPath();
+          sctx.arc(x, y, r, 0, Math.PI * 2);
+          sctx.fillStyle = `rgba(255,${232 + Math.floor(Math.random() * 18)},${196 + Math.floor(Math.random() * 40)},${a.toFixed(2)})`;
+          sctx.fill();
+        }
+
+        // Dünne Wolkenschleier nahe dem Horizont
+        sctx.save();
+        sctx.filter = "blur(16px)";
+        sctx.globalAlpha = 0.3;
+        for (let i = 0; i < 4; i++) {
+          const cx = SKY_W * (0.08 + Math.random() * 0.84);
+          const cy = SKY_H * (0.76 + Math.random() * 0.14);
+          const rw = SKY_W * (0.12 + Math.random() * 0.15);
+          sctx.beginPath();
+          sctx.ellipse(cx, cy, rw, rw * 0.16, 0, 0, Math.PI * 2);
+          sctx.fillStyle = "#1c1010";
+          sctx.fill();
+        }
+        sctx.restore();
+
         const skyTex = new THREE.CanvasTexture(skyCv);
         skyTex.colorSpace = THREE.SRGBColorSpace;
         scene.background = skyTex;
@@ -478,9 +525,37 @@ export default function TerrainFlightCanvas({
         }
         // Lichter für Lambert-Materialien (Gebäude); Gelände beleuchtet der Shader
         scene.add(new THREE.HemisphereLight(0x4a3a48, 0x241a14, 1.2));
+        const sunDir = new THREE.Vector3(-8300, 4800, 2800);
         const sun = new THREE.DirectionalLight(0xffd9a0, 1.8);
-        sun.position.set(-8300, 4800, 2800);
+        sun.position.copy(sunDir);
         scene.add(sun);
+
+        // Sonnen-Flare: weicher additiver Kreis weit hinter dem Gelände, exakt
+        // in Richtung des Streiflichts. Kein eigenes Bloom-Objekt nötig, die
+        // Helligkeit reicht, um vom UnrealBloomPass aufgenommen zu werden.
+        {
+          const cv = document.createElement("canvas");
+          cv.width = cv.height = 256;
+          const c = cv.getContext("2d")!;
+          const g = c.createRadialGradient(128, 128, 0, 128, 128, 128);
+          g.addColorStop(0, "rgba(255,238,204,0.95)");
+          g.addColorStop(0.35, "rgba(240,205,140,0.5)");
+          g.addColorStop(1, "rgba(240,205,140,0)");
+          c.fillStyle = g;
+          c.fillRect(0, 0, 256, 256);
+          const flareTex = new THREE.CanvasTexture(cv);
+          const flare = new THREE.Sprite(
+            new THREE.SpriteMaterial({
+              map: flareTex, transparent: true, depthWrite: false,
+              blending: THREE.AdditiveBlending, fog: false,
+            }),
+          );
+          const flarePos = sunDir.clone().normalize().multiplyScalar(24000);
+          flare.position.set(flarePos.x, flarePos.y + 2600, flarePos.z);
+          flare.scale.setScalar(9000);
+          scene.add(flare);
+          disposables.push(flareTex, { dispose: () => flare.material.dispose() });
+        }
 
         // ---- Fern-Ebene (Copernicus): Tusche-Grund, Konturen 10 m / 50 m
         const ff = farScene.frame as FarFrame;
@@ -522,6 +597,42 @@ export default function TerrainFlightCanvas({
         const nx = (c: number) => nf.x0 + c * nf.cell + nf.cell / 2;
         const nz = (r: number) => nf.z0 + r * nf.cell + nf.cell / 2;
         const nearSample = makeSampler(nearH, nf.rows, nf.cols, nx, nz);
+
+        // Goldstaub: treibende Partikel für atmosphärische Tiefe. Statisch
+        // positioniert (kein eigener rAF-Trieb), da die Szene ohnehin nur bei
+        // Scroll-Änderung neu zeichnet — beim Durchfliegen wirkt das Feld
+        // trotzdem lebendig, weil die Kamera durch die Punktwolke wandert.
+        {
+          const groundY = nearSample(0, 0) * EX;
+          const dotCv = document.createElement("canvas");
+          dotCv.width = dotCv.height = 64;
+          const dc = dotCv.getContext("2d")!;
+          const dg = dc.createRadialGradient(32, 32, 0, 32, 32, 32);
+          dg.addColorStop(0, "rgba(255,240,210,1)");
+          dg.addColorStop(1, "rgba(255,240,210,0)");
+          dc.fillStyle = dg;
+          dc.fillRect(0, 0, 64, 64);
+          const dotTex = new THREE.CanvasTexture(dotCv);
+
+          const COUNT = isMobile ? 150 : 480;
+          const pPos = new Float32Array(COUNT * 3);
+          for (let i = 0; i < COUNT; i++) {
+            pPos[i * 3] = -3600 + Math.random() * 8200;
+            pPos[i * 3 + 1] = groundY + 120 + Math.random() * 1500;
+            pPos[i * 3 + 2] = -3200 + Math.random() * 12800;
+          }
+          const pGeo = new THREE.BufferGeometry();
+          pGeo.setAttribute("position", new THREE.BufferAttribute(pPos, 3));
+          const pMat = new THREE.PointsMaterial({
+            size: 26, map: dotTex, transparent: true, depthWrite: false,
+            blending: THREE.AdditiveBlending, color: new THREE.Color(GOLD),
+            sizeAttenuation: true, fog: true, opacity: 0.55,
+          });
+          const dust = new THREE.Points(pGeo, pMat);
+          scene.add(dust);
+          disposables.push(pGeo, pMat, dotTex);
+        }
+
         const NEAR_LIFT = 1.4;
         const nearGroup = new THREE.Group();
         const nearRamp: [number, THREE.Color][] = [
@@ -642,15 +753,19 @@ export default function TerrainFlightCanvas({
 
         // ---- Kamerapfad (Catmull-Rom durch Position und Blickziel)
         const parkY = nearSample(0, 0) * EX;
+        // Startpunkt bewusst steiler als geometrisch nötig: bei 50°-FOV zeigt ein
+        // zu flacher Blick am Anfang über den Terrain-Rand hinweg ins Nichts
+        // (schwarzer Leerraum über dem Horizont). Näher heran und stärker
+        // nach unten geneigt hält den Horizont knapp unter der Bildoberkante.
         const posCurve = new THREE.CatmullRomCurve3([
-          new THREE.Vector3(5000, parkY + 4300, 7800),
+          new THREE.Vector3(3800, parkY + 3800, 6000),
           new THREE.Vector3(2600, parkY + 2300, 4300),
           new THREE.Vector3(900, parkY + 700, 1500),
           new THREE.Vector3(240, parkY + 230, 520),
           new THREE.Vector3(-300, parkY + 130, 330),
         ]);
         const tgtCurve = new THREE.CatmullRomCurve3([
-          new THREE.Vector3(0, parkY - 40, -2200),
+          new THREE.Vector3(0, parkY - 100, -1600),
           new THREE.Vector3(0, parkY - 8, -600),
           new THREE.Vector3(0, parkY, -150),
           new THREE.Vector3(-30, parkY + 1, -70),
