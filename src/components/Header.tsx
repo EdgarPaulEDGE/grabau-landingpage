@@ -129,8 +129,9 @@ export default function Header() {
           id="mobil-menue"
           inert={!open}
           className={cn(
-            "overflow-hidden border-t border-hair bg-paper transition-[max-height] duration-500 lg:hidden",
-            open ? "max-h-96" : "max-h-0",
+            "border-t border-hair bg-paper transition-[max-height] duration-500 lg:hidden",
+            // Höhe bis Bildschirmende, bei flachen Geräten scrollt das Menü
+            open ? "max-h-[calc(100svh-72px)] overflow-y-auto" : "max-h-0 overflow-hidden",
           )}
         >
           <nav className="flex flex-col gap-1 px-5 py-4">
