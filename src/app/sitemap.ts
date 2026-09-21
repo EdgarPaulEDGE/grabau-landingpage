@@ -10,7 +10,8 @@ import { IST_VORSCHAU, SITE_URL } from "@/config/site";
  * Solange die Seite als Vorschau auf noindex steht, bleibt die Sitemap
  * bewusst leer: eine Sitemap, die eine noindex-URL meldet, ist ein
  * widersprüchliches Signal (und in der Search Console eine Warnung).
- * Mit dem Umstellen von SITE_URL füllt sie sich automatisch.
+ * Mit NEXT_PUBLIC_SITE_INDEXIEREN=1 (nur auf der echten Domain) füllt sie
+ * sich automatisch.
  */
 // Pflicht für den statischen Export: lastModified friert auf die Bauzeit ein
 export const dynamic = "force-static";

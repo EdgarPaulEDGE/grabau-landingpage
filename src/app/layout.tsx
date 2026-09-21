@@ -6,9 +6,11 @@ import { baueSchemaGraph } from "@/lib/schema";
 
 export const metadata: Metadata = {
   // Basis für absolute URLs (Link-Vorschaubilder, canonical).
-  // Umstellen auf die eigene Domain in src/config/site.ts → SITE_URL.
+  // Kommt aus NEXT_PUBLIC_SITE_URL, siehe src/config/site.ts.
   metadataBase: new URL(`${SITE_URL}/`),
-  alternates: { canonical: "./" },
+  // Canonical nur auf der echten Domain. Auf einer noindex-Vorschau wäre
+  // es ein widersprüchliches Signal.
+  ...(IST_VORSCHAU ? {} : { alternates: { canonical: "./" } }),
   title: {
     default:
       "Gewerbepark Grabauer Ruhm · Gewerbeflächen an der B207, 40 Min. vor Hamburg",
@@ -43,10 +45,23 @@ export const metadata: Metadata = {
     ],
     apple: { url: "apple-touch-icon.png", sizes: "180x180" },
   },
-  // Vorschau unter github.io bleibt aus dem Index, damit sie später nicht
-  // gegen die eigene Domain konkurriert (siehe IST_VORSCHAU in site.ts).
+  // Vorschauen bleiben komplett aus Suchmaschinen und Archiven raus,
+  // damit sie später nicht gegen die eigene Domain konkurrieren.
   robots: IST_VORSCHAU
-    ? { index: false, follow: false }
+    ? {
+        index: false,
+        follow: false,
+        noarchive: true,
+        nosnippet: true,
+        noimageindex: true,
+        googleBot: {
+          index: false,
+          follow: false,
+          noarchive: true,
+          nosnippet: true,
+          noimageindex: true,
+        },
+      }
     : { index: true, follow: true },
 };
 

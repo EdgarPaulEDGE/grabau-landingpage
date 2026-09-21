@@ -8,20 +8,25 @@
  */
 
 /**
- * Kanonische Adresse der Seite.
- * Aktuell die GitHub-Pages-Vorschau. Sobald gewerbepark-grabau.de
- * registriert ist, hier auf "https://gewerbepark-grabau.de" umstellen:
- * Metadaten, Link-Vorschaubilder und JSON-LD ziehen alle diesen Wert.
+ * Adresse der jeweiligen Auslieferung. Kommt beim Build aus
+ * NEXT_PUBLIC_SITE_URL, damit GitHub Pages, die Vorschau unter
+ * grabau.edge-digital.ai und später gewerbepark-grabau.de jeweils ihre
+ * eigenen absoluten URLs bekommen (Link-Vorschaubild, JSON-LD).
+ * NEXT_PUBLIC_, weil auch Client-Komponenten diese Datei laden und sonst
+ * einen anderen Wert sähen als der Server.
  */
-export const SITE_URL = "https://edgarpauledge.github.io/grabau-landingpage";
+export const SITE_URL = (
+  process.env.NEXT_PUBLIC_SITE_URL ??
+  "https://edgarpauledge.github.io/grabau-landingpage"
+).replace(/\/+$/, "");
 
 /**
- * Solange die Seite unter github.io läuft, ist sie nur eine interne
- * Vorschau: dann NICHT indexieren, sonst rankt später die Vorschau
- * gegen die echte Domain. Der Wechsel von SITE_URL schaltet die
- * Indexierung automatisch frei.
+ * Indexierung ist grundsätzlich AUS. Freigeschaltet wird sie nur mit
+ * NEXT_PUBLIC_SITE_INDEXIEREN=1, und das bekommt ausschließlich der Build
+ * für die echte Domain. Jede Vorschau bleibt damit aus Google raus, egal
+ * unter welcher Adresse sie gerade läuft.
  */
-export const IST_VORSCHAU = SITE_URL.includes("github.io");
+export const IST_VORSCHAU = process.env.NEXT_PUBLIC_SITE_INDEXIEREN !== "1";
 
 /** Der Gewerbepark als Ort (für strukturierte Daten und Karten-Links). */
 export const STANDORT = {
