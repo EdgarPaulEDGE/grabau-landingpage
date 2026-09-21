@@ -63,7 +63,7 @@ export default function Hero() {
             <Reveal delay={0.2}>
               <p className="mt-7 max-w-xl text-lg leading-relaxed text-paper/85 md:text-xl">
                 Voll erschlossene Gewerbegrundstücke direkt an der B207, 7 km zur
-                A24 und 40 Minuten vor Hamburg. Flexibel parzellierbar von{" "}
+                A24 und 40 Minuten vor Hamburg. Grundstücke von{" "}
                 {m2(FLAECHEN.kleinste)} bis {m2(FLAECHEN.groesste)}. Bebauungsplan
                 rechtskräftig, verfügbar ab sofort.
               </p>

@@ -1,8 +1,8 @@
 import Image from "next/image";
-import { Navigation, Train, Plane, Anchor, Ship } from "lucide-react";
+import { Navigation, Train, Plane, Anchor, Bus, Building2 } from "lucide-react";
 import Reveal from "./ui/Reveal";
 import CorridorField from "./CorridorField";
-import { DISTANCES } from "@/config/site";
+import { DISTANCES, type DistanceItem } from "@/config/site";
 
 export default function Location() {
   return (
@@ -69,13 +69,13 @@ export default function Location() {
           <div>
             <Reveal delay={0.1}>
               <ul className="divide-y divide-white/10">
-                {DISTANCES.map((d, i) => (
+                {DISTANCES.map((d) => (
                   <li
                     key={d.place}
                     className="flex items-center justify-between gap-4 py-4"
                   >
                     <div className="flex items-center gap-4">
-                      <DistanceIcon index={i} />
+                      <DistanceIcon icon={d.icon} />
                       <div>
                         <p className="font-semibold text-paper">{d.place}</p>
                         <p className="text-sm text-paper/55">{d.detail}</p>
@@ -95,10 +95,18 @@ export default function Location() {
   );
 }
 
-/** Passendes Icon je Entfernungstyp (dezent rotierend nach Reihenfolge). */
-function DistanceIcon({ index }: { index: number }) {
-  const icons = [Navigation, Navigation, Train, Navigation, Plane, Anchor, Ship, Train];
-  const Icon = icons[index] ?? Navigation;
+const ICONS = {
+  strasse: Navigation,
+  stadt: Building2,
+  bahn: Train,
+  bus: Bus,
+  flug: Plane,
+  hafen: Anchor,
+} as const;
+
+/** Symbol je Entfernungstyp, festgelegt im Datensatz */
+function DistanceIcon({ icon }: { icon: DistanceItem["icon"] }) {
+  const Icon = ICONS[icon];
   return (
     <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-white/15 bg-white/5">
       <Icon className="h-5 w-5 text-paper/80" />

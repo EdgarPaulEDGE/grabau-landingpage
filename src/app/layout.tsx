@@ -16,7 +16,7 @@ export const metadata: Metadata = {
       "Gewerbepark Grabauer Ruhm · Gewerbeflächen an der B207, 40 Min. vor Hamburg",
     template: "%s · Gewerbepark Grabau",
   },
-  description: `Voll erschlossene Gewerbegrundstücke im Kreis Herzogtum Lauenburg. Direkt an der B207, 7 km zur A24, 40 Minuten vor Hamburg. Flexibel parzellierbar ab ${m2(FLAECHEN.kleinste)}. Bebauungsplan rechtskräftig, verfügbar ab sofort.`,
+  description: `Voll erschlossene Gewerbegrundstücke im Kreis Herzogtum Lauenburg. Direkt an der B207, 7 km zur A24, 40 Minuten vor Hamburg. Grundstücke ab ${m2(FLAECHEN.kleinste)}. Bebauungsplan rechtskräftig, verfügbar ab sofort.`,
   keywords: [
     "Gewerbegrundstück Hamburg Umland",
     "Gewerbefläche kaufen Schleswig-Holstein",

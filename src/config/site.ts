@@ -43,7 +43,7 @@ export const STANDORT = {
 
 export const CONTACT = {
   name: "Nina Warncke",
-  role: "Ansprechpartnerin Gewerbeflächen · WFL",
+  role: "Assistentin der Geschäftsleitung · WFL",
   org: "Wirtschaftsförderung Herzogtum Lauenburg",
   phone: "+49 4541 86 04 10",
   phoneHref: "tel:+494541860410",
@@ -89,7 +89,7 @@ export const STATS: Stat[] = [
   { value: 40, suffix: " km", label: "bis Hamburg", sub: "Hafen · Flughafen · Fachkräfte" },
   { value: 7, suffix: " km", label: "zur A24", sub: "Auffahrt Talkau, Richtung Hamburg" },
   { value: FLAECHEN.verfuegbar, suffix: " m²", label: "verfügbare Fläche", sub: `auf ${FLAECHEN.gebiet / 10000} Hektar Gewerbepark` },
-  { value: FLAECHEN.kleinste, prefix: "ab ", suffix: " m²", label: "Grundstücksgröße", sub: `flexibel bis ${m2(FLAECHEN.groesste)}` },
+  { value: FLAECHEN.kleinste, prefix: "ab ", suffix: " m²", label: "Grundstücksgröße", sub: `größte Fläche ${m2(FLAECHEN.groesste)}` },
 ];
 
 /** Verkaufsargumente in Kurzform (Problem → Lösung Abschnitt). */
@@ -104,7 +104,7 @@ export const SOLUTION_POINTS = [
   },
   {
     title: "Platz, der mitwächst",
-    body: `Grundstücke von ${m2(FLAECHEN.kleinste)} bis ${m2(FLAECHEN.groesste)}, nach Bedarf parzellierbar. Ob kompakter Neubau oder großes Werk mit Reserveflächen: Grabau passt sich Ihrem Vorhaben an.`,
+    body: `Grundstücke von ${m2(FLAECHEN.kleinste)} bis ${m2(FLAECHEN.groesste)}, auf Anfrage teilweise parzellierbar. Ob kompakter Neubau oder großes Werk mit Reserveflächen: Grabau passt sich Ihrem Vorhaben an.`,
   },
   {
     title: "Ein Ansprechpartner statt Behördendschungel",
@@ -112,22 +112,25 @@ export const SOLUTION_POINTS = [
   },
 ];
 
-/** Anbindung / Entfernungen. */
+/** Anbindung / Entfernungen. Werte aus der WFL-Tabelle (Stand August 2026). */
 export interface DistanceItem {
   place: string;
   detail: string;
   value: string;
+  /** Symbol in der Liste, gehört zum Eintrag statt zur Position */
+  icon: "strasse" | "stadt" | "bahn" | "bus" | "flug" | "hafen";
 }
 
 export const DISTANCES: DistanceItem[] = [
-  { place: "B207", detail: "Bundesstraße", value: "direkt" },
-  { place: "A24 Talkau", detail: "Autobahn nach Hamburg und Berlin", value: "7,0 km" },
-  { place: "Schwarzenbek", detail: "Stadt & Bahnhof", value: "2,7 km" },
-  { place: "Hamburg", detail: "Metropolregion", value: "≈ 40 km" },
-  { place: "Flughafen Hamburg", detail: "internationale Anbindung", value: "41 km" },
-  { place: "Hafen Hamburg", detail: "Überseehafen", value: "46 km" },
-  { place: "Lübeck", detail: "Ostsee & Flughafen", value: "≈ 41 km" },
-  { place: "Bushaltestelle", detail: "ÖPNV vor der Tür", value: "0,2 km" },
+  { place: "B207", detail: "Bundesstraße", value: "direkt", icon: "strasse" },
+  { place: "A24 Talkau", detail: "Autobahn nach Hamburg und Berlin", value: "7,0 km", icon: "strasse" },
+  { place: "Bushaltestelle", detail: "ÖPNV vor der Tür", value: "0,2 km", icon: "bus" },
+  { place: "Schwarzenbek", detail: "nächste Stadt", value: "2,7 km", icon: "stadt" },
+  { place: "Bahnhof Schwarzenbek", detail: "Bahnanschluss", value: "4,0 km", icon: "bahn" },
+  { place: "Hamburg", detail: "Metropolregion", value: "≈ 40 km", icon: "stadt" },
+  { place: "Flughafen Lübeck", detail: "Regionalflughafen", value: "40,6 km", icon: "flug" },
+  { place: "Flughafen Hamburg", detail: "internationale Anbindung", value: "41,0 km", icon: "flug" },
+  { place: "Hafen Hamburg", detail: "Überseehafen", value: "46,3 km", icon: "hafen" },
 ];
 
 /** Grundstücke aus dem offiziellen Standortplan (Stand August 2026).
@@ -197,7 +200,7 @@ export const FACTS: { label: string; value: string }[] = [
   { label: "Gebietsgröße", value: m2(FLAECHEN.gebiet) },
   { label: "Verfügbare Fläche", value: m2(FLAECHEN.verfuegbar) },
   { label: "Grundstücke", value: `${m2(FLAECHEN.kleinste)} bis ${m2(FLAECHEN.groesste)}` },
-  { label: "Parzellierung", value: "nach Bedarf möglich" },
+  { label: "Parzellierung", value: "teilweise, auf Anfrage" },
   { label: "Erschließung", value: "vollständig erschlossen" },
   { label: "Verfügbar ab", value: "sofort" },
   { label: "Nutzungsart", value: "Gewerbegebiet (GE)" },

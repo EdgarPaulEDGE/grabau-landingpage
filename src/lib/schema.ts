@@ -92,7 +92,7 @@ function angebot() {
     "@type": "Offer",
     "@id": `${SITE_URL}/#angebot`,
     name: "Gewerbegrundstücke im Gewerbepark Grabauer Ruhm",
-    description: `${anzahl} sofort verfügbare, voll erschlossene Gewerbegrundstücke von ${m2(min)} bis ${m2(max)}, nach Bedarf parzellierbar.`,
+    description: `${anzahl} sofort verfügbare, voll erschlossene Gewerbegrundstücke von ${m2(min)} bis ${m2(max)}, auf Anfrage teilweise parzellierbar.`,
     availability: "https://schema.org/InStock",
     businessFunction: "https://purl.org/goodrelations/v1#Sell",
     /* Preis bewusst ohne Betrag: der Quadratmeterpreis wird im
