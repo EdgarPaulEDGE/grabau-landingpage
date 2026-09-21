@@ -289,9 +289,8 @@ export default function SitePlan() {
             <Reveal delay={0.24}>
               <div className="mt-4 max-h-[320px] overflow-y-auto rounded-2xl border border-hair-strong bg-white">
                 <ul className="divide-y divide-hair">
-                  {sortedPlots.map((plot) => {
+                  {sortedPlots.filter(matches).map((plot) => {
                     const meta = PLOT_STATUS_META[plot.status];
-                    const on = matches(plot);
                     return (
                       <li key={plot.id}>
                         <button
@@ -301,7 +300,6 @@ export default function SitePlan() {
                           className={cn(
                             "flex w-full items-center justify-between gap-3 px-4 py-3 text-left transition-colors",
                             selected === plot.id ? "bg-paper-2" : "hover:bg-paper-2/60",
-                            !on && "opacity-40",
                           )}
                         >
                           <span className="flex items-center gap-3">

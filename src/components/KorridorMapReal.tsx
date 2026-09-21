@@ -171,6 +171,15 @@ export default function KorridorMapReal({ progressRef, className }: KorridorMapR
     /* Kachel-/Netzwerkfehler still schlucken: Karte bleibt dann dunkel */
     map.on("error", () => undefined);
 
+    /* Der Kartenstil verweist auf Symbole, die im Sprite fehlen
+       („wood-pattern“, „circle-11“). Ein leeres Bild beendet die
+       Konsolenwarnung, sichtbar ändert sich nichts. */
+    map.on("styleimagemissing", (e) => {
+      if (!map.hasImage(e.id)) {
+        map.addImage(e.id, { width: 1, height: 1, data: new Uint8Array(4) });
+      }
+    });
+
     const marker: maplibregl.Marker[] = [];
     const markerElemente: HTMLDivElement[] = [];
     let bereit = false;
