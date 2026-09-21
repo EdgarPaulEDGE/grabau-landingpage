@@ -42,7 +42,7 @@ export default function Location() {
             <Reveal delay={0.16}>
               <p className="mt-6 max-w-lg text-lg leading-relaxed text-paper/75">
                 Grabau liegt direkt an der B207, nur sieben Kilometer von der A24
-                Hamburg–Berlin entfernt. Von hier erreichen Sie den Hamburger
+                zwischen Hamburg und Berlin entfernt. Von hier erreichen Sie den Hamburger
                 Hafen, den Flughafen und die Fachkräfte der Metropolregion in
                 kurzer Zeit.
               </p>

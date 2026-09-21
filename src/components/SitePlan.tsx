@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import Image from "next/image";
 import dynamic from "next/dynamic";
 import { ArrowRight, Maximize2, Check, Box, Map } from "lucide-react";
-import { PLOTS, PLOT_STATUS_META, type Plot, type PlotStatus } from "@/config/site";
+import { PLOTS, PLOT_STATUS_META, m2, type Plot, type PlotStatus } from "@/config/site";
 import Reveal from "./ui/Reveal";
 import { cn } from "@/lib/utils";
 
@@ -27,8 +27,9 @@ const FILTERS: { key: Filter; label: string }[] = [
   { key: "verkauft", label: "Verkauft" },
 ];
 
+/** Fläche als Text, leer wenn die WFL keine Größe ausweist (verkauft) */
 function fmtSize(size: number | null): string {
-  return size ? `${size.toLocaleString("de-DE")} m²` : "—";
+  return size ? m2(size) : "";
 }
 
 /** Löst das Vorbefüllen des Kontaktformulars aus und scrollt dorthin. */
@@ -98,6 +99,7 @@ export default function SitePlan() {
                 <button
                   key={f.key}
                   onClick={() => setFilter(f.key)}
+                  aria-pressed={filter === f.key}
                   className={cn(
                     "rounded-full border px-4 py-2 text-sm font-semibold transition-all",
                     filter === f.key
@@ -197,21 +199,21 @@ export default function SitePlan() {
                         dim ? "opacity-25" : "opacity-100",
                         isActive ? "z-30" : "z-10",
                       )}
-                      aria-label={`Grundstück ${plot.label}, ${meta.label}, ${fmtSize(plot.size)}`}
+                      aria-label={[`Grundstück ${plot.label}`, meta.label, fmtSize(plot.size)].filter(Boolean).join(", ")}
                     >
                       <span
                         className={cn(
                           "grid place-items-center rounded-full border-2 border-white font-bold text-white shadow-md transition-all",
                           isActive ? "h-9 w-9 scale-110 text-sm" : "h-7 w-7 text-xs",
                         )}
-                        style={{ backgroundColor: meta.dot }}
+                        style={{ backgroundColor: meta.schrift }}
                       >
                         {plot.id}
                       </span>
                       {/* Tooltip */}
                       {isActive && (
                         <span className="pointer-events-none absolute bottom-full left-1/2 mb-2 -translate-x-1/2 whitespace-nowrap rounded-lg bg-ink px-3 py-1.5 text-xs font-semibold text-paper shadow-lg">
-                          {plot.label} · {fmtSize(plot.size)}
+                          {plot.size ? `${plot.label} · ${fmtSize(plot.size)}` : plot.label}
                         </span>
                       )}
                     </button>
@@ -226,7 +228,7 @@ export default function SitePlan() {
                   <span key={s} className="flex items-center gap-2 text-sm text-ink/70">
                     <span
                       className="h-3 w-3 rounded-full"
-                      style={{ backgroundColor: PLOT_STATUS_META[s].dot }}
+                      style={{ backgroundColor: PLOT_STATUS_META[s].schrift }}
                     />
                     {PLOT_STATUS_META[s].label}
                   </span>
@@ -256,7 +258,7 @@ export default function SitePlan() {
                     </div>
                     <div className="mt-5 space-y-3 border-t border-hair pt-5 text-sm">
                       <Row label="Grundstück" value={selectedPlot.label} />
-                      <Row label="Fläche" value={fmtSize(selectedPlot.size)} />
+                      <Row label="Fläche" value={fmtSize(selectedPlot.size) || "nicht ausgewiesen"} />
                       <Row label="Nutzung" value="Gewerbegebiet (GE)" />
                       <Row label="GRZ" value="0,8" />
                     </div>
@@ -305,7 +307,7 @@ export default function SitePlan() {
                           <span className="flex items-center gap-3">
                             <span
                               className="grid h-7 w-7 shrink-0 place-items-center rounded-full text-xs font-bold text-white"
-                              style={{ backgroundColor: meta.dot }}
+                              style={{ backgroundColor: meta.schrift }}
                             >
                               {plot.id}
                             </span>
@@ -349,7 +351,10 @@ function StatusBadge({ status }: { status: PlotStatus }) {
   return (
     <span
       className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold"
-      style={{ backgroundColor: `${meta.dot}1a`, color: meta.dot }}
+      style={{
+        backgroundColor: `color-mix(in srgb, ${meta.dot} 14%, white)`,
+        color: meta.schrift,
+      }}
     >
       {status === "verfuegbar" && <Check className="h-3.5 w-3.5" />}
       {meta.label}

@@ -76,7 +76,7 @@ export default function KorridorScroll() {
       });
 
       if (counterRef.current) {
-        counterRef.current.textContent = `${String(Math.min(Math.floor(p * 4) + 1, 4)).padStart(2, "0")} / 04`;
+        counterRef.current.textContent = `${Math.min(Math.floor(p * 4) + 1, 4)} / 4`;
       }
     };
     // Direktes Update im Scroll-Handler: billig (nur wenige Style-Writes)
@@ -108,13 +108,14 @@ export default function KorridorScroll() {
           <div className="mx-auto flex max-w-7xl items-center justify-between px-5 md:px-8">
             <div className="flex items-center gap-3">
               <span className="h-px w-8 bg-gold" />
-              <span className="eyebrow text-gold">Die Achse</span>
+              <h2 className="eyebrow text-gold">Die Achse</h2>
             </div>
             <span
               ref={counterRef}
-              className="numeral text-sm font-bold tracking-[0.2em] text-paper/50"
+              aria-hidden="true"
+              className="numeral text-sm font-bold tracking-[0.2em] text-paper/60"
             >
-              01 / 04
+              1 / 4
             </span>
           </div>
         </div>

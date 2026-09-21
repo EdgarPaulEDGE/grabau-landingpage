@@ -731,6 +731,15 @@ export default function TerrainFlightCanvas({
     let raf = 0;
     const disposables: { dispose: () => void }[] = [];
 
+    // Verliert der Browser den WebGL-Kontext (Speicherdruck, viele Tabs,
+    // GPU-Reset), bliebe sonst ein schwarzes Standbild stehen. So springt
+    // die Sektion auf das statische Luftbild zurück.
+    const beiKontextVerlust = (e: Event) => {
+      e.preventDefault();
+      cancelAnimationFrame(raf);
+      onFail();
+    };
+
     (async () => {
       try {
         const loader = new THREE.TextureLoader();
@@ -766,6 +775,7 @@ export default function TerrainFlightCanvas({
         renderer.domElement.style.position = "absolute";
         renderer.domElement.style.inset = "0";
         host.appendChild(renderer.domElement);
+        renderer.domElement.addEventListener("webglcontextlost", beiKontextVerlust, false);
 
         // Schärfe bei flachen Blickwinkeln (Luftbild-Texturen)
         const aniso = Math.min(8, renderer.capabilities.getMaxAnisotropy());
@@ -1339,6 +1349,7 @@ export default function TerrainFlightCanvas({
       cancelAnimationFrame(raf);
       for (const d of disposables) d.dispose();
       if (renderer) {
+        renderer.domElement.removeEventListener("webglcontextlost", beiKontextVerlust);
         renderer.dispose();
         renderer.domElement.remove();
       }

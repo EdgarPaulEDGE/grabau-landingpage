@@ -12,6 +12,32 @@ interface Lead {
   plotSize?: string;
   message?: string;
   consent?: boolean;
+  website?: string;
+}
+
+/**
+ * Einfache Drosselung pro IP: höchstens 5 Anfragen in 10 Minuten.
+ * Liegt im Speicher der laufenden Instanz, das reicht gegen Skripte,
+ * die das Formular in Schleife abschicken.
+ */
+const FENSTER_MS = 10 * 60 * 1000;
+const MAX_PRO_FENSTER = 5;
+const anfragen = new Map<string, number[]>();
+
+function gedrosselt(ip: string): boolean {
+  const jetzt = Date.now();
+  const frisch = (anfragen.get(ip) ?? []).filter((t) => jetzt - t < FENSTER_MS);
+  frisch.push(jetzt);
+  anfragen.set(ip, frisch);
+  if (anfragen.size > 5000) anfragen.clear();
+  return frisch.length > MAX_PRO_FENSTER;
+}
+
+/** Text-Feld prüfen: String, getrimmt, in der erlaubten Länge */
+function text(v: unknown, min: number, max: number): string | null {
+  if (typeof v !== "string") return min === 0 ? "" : null;
+  const t = v.trim();
+  return t.length >= min && t.length <= max ? t : null;
 }
 
 /**
@@ -28,11 +54,28 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: false, error: "invalid_json" }, { status: 400 });
   }
 
-  const { name, company, email, consent } = data;
-  const emailOk = typeof email === "string" && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
-  if (!name || !company || !emailOk || consent !== true) {
+  // Bot hat das unsichtbare Feld ausgefüllt: freundlich "ok", nichts tun
+  if (typeof data.website === "string" && data.website.trim() !== "") {
+    return NextResponse.json({ ok: true });
+  }
+
+  const ip = (req.headers.get("x-forwarded-for") ?? "").split(",")[0].trim() || "unbekannt";
+  if (gedrosselt(ip)) {
+    return NextResponse.json({ ok: false, error: "rate_limited" }, { status: 429 });
+  }
+
+  // Dieselben Regeln wie im Formular (LeadForm.tsx)
+  const name = text(data.name, 2, 120);
+  const company = text(data.company, 2, 160);
+  const email = text(data.email, 3, 254);
+  const phone = text(data.phone, 0, 40);
+  const plotSize = text(data.plotSize, 0, 60);
+  const message = text(data.message, 0, 4000);
+  const emailOk = !!email && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+  if (!name || !company || !emailOk || phone === null || plotSize === null || message === null || data.consent !== true) {
     return NextResponse.json({ ok: false, error: "validation" }, { status: 400 });
   }
+  data = { name, company, email: email!, phone, plotSize, message, consent: true };
 
   // Lokaler Fallback-Speicher (best effort, blockiert die Antwort nicht).
   // Achtung: Auf Hosts wie Render ist das Dateisystem fluechtig, die Datei
@@ -85,9 +128,9 @@ async function sendEmail(apiKey: string, d: Lead) {
     ["Name", d.name ?? ""],
     ["Unternehmen", d.company ?? ""],
     ["E-Mail", d.email ?? ""],
-    ["Telefon", d.phone || "—"],
-    ["Gewünschte Größe", d.plotSize || "—"],
-    ["Nachricht", d.message || "—"],
+    ["Telefon", d.phone || "keine Angabe"],
+    ["Gewünschte Größe", d.plotSize || "keine Angabe"],
+    ["Nachricht", d.message || "keine Angabe"],
   ];
 
   const html = `

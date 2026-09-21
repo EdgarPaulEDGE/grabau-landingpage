@@ -63,7 +63,9 @@ Status der Grundstücke ändern: einfach `status` in `PLOTS` anpassen. Die Verf�
 
 ## Lead-Formular
 
-Anfragen gehen an `POST /api/lead`. Ohne Konfiguration werden sie lokal in `data/leads.jsonl` gespeichert und der Nutzer bekommt einen mailto-Fallback.
+Anfragen gehen an `POST /api/lead`. Ohne Konfiguration werden sie lokal in `data/leads.jsonl` gespeichert und der Nutzer bekommt einen mailto-Fallback. Die Route prüft dieselben Regeln wie das Formular, verwirft Anfragen mit ausgefülltem Honeypot-Feld und nimmt pro IP höchstens fünf Anfragen in zehn Minuten an.
+
+In der statischen Vorschau (`STATIC_EXPORT=1`) gibt es keinen Server. Das Formular öffnet dort direkt das E-Mail-Programm mit der fertigen Anfrage an die WFL, statt einen Fehler zu zeigen.
 
 **Für den Produktivbetrieb E-Mail-Versand aktivieren:** `.env.local.example` nach `.env.local` kopieren und einen [Resend](https://resend.com)-API-Key eintragen. Dann geht jede Anfrage per Mail an `warncke@wfl.de`.
 

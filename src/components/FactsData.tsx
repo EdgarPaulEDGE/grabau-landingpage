@@ -54,14 +54,14 @@ export default function FactsData() {
                   Bebauungsplan Nr. 4
                 </h3>
                 <p className="mt-2 text-sm leading-relaxed text-paper/70">
-                  Der vollständige B-Plan „Auf'n Ruhm" als PDF. Das komplette
+                  Der vollständige B-Plan „Auf'n Ruhm“ als PDF. Das komplette
                   Exposé mit m²-Preisen erhalten Sie persönlich auf Anfrage.
                 </p>
                 <div className="mt-6 flex flex-col gap-3">
                   <a
                     href="/expose/bplan-grabau-nr4.pdf"
                     target="_blank"
-                    rel="noopener"
+                    rel="noopener noreferrer"
                     className="group inline-flex items-center justify-center gap-2 rounded-full bg-paper px-6 py-3.5 text-sm font-semibold text-ink transition-all hover:-translate-y-0.5 hover:bg-gold"
                   >
                     <FileDown className="h-4 w-4" />

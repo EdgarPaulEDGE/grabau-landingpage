@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import ScrollProgress from "@/components/ui/ScrollProgress";
-import { IST_VORSCHAU, SITE_URL } from "@/config/site";
+import { FLAECHEN, IST_VORSCHAU, SITE_URL, m2 } from "@/config/site";
 import { baueSchemaGraph } from "@/lib/schema";
 
 export const metadata: Metadata = {
@@ -16,8 +16,7 @@ export const metadata: Metadata = {
       "Gewerbepark Grabauer Ruhm · Gewerbeflächen an der B207, 40 Min. vor Hamburg",
     template: "%s · Gewerbepark Grabau",
   },
-  description:
-    "Voll erschlossene Gewerbegrundstücke im Kreis Herzogtum Lauenburg. Direkt an der B207, 7 km zur A24, 40 Minuten vor Hamburg. Flexibel parzellierbar ab 1.800 m². Bebauungsplan rechtskräftig, verfügbar ab sofort.",
+  description: `Voll erschlossene Gewerbegrundstücke im Kreis Herzogtum Lauenburg. Direkt an der B207, 7 km zur A24, 40 Minuten vor Hamburg. Flexibel parzellierbar ab ${m2(FLAECHEN.kleinste)}. Bebauungsplan rechtskräftig, verfügbar ab sofort.`,
   keywords: [
     "Gewerbegrundstück Hamburg Umland",
     "Gewerbefläche kaufen Schleswig-Holstein",
@@ -30,8 +29,7 @@ export const metadata: Metadata = {
     type: "website",
     locale: "de_DE",
     title: "Gewerbepark Grabauer Ruhm · Ihr nächster Standort, schon erschlossen",
-    description:
-      "Voll erschlossene Gewerbegrundstücke an der B207, 40 Minuten vor Hamburg. Ab 1.800 m², sofort bebaubar.",
+    description: `Voll erschlossene Gewerbegrundstücke an der B207, 40 Minuten vor Hamburg. Ab ${m2(FLAECHEN.kleinste)}, sofort bebaubar.`,
     // Bewusst OHNE führenden Slash: die Seite liegt auf GitHub Pages in
     // einem Unterordner, ein root-absoluter Pfad würde ihn überschreiben.
     images: [{ url: "img/hero-aerial.jpg", width: 2000, height: 1400 }],

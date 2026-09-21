@@ -3,7 +3,7 @@
  * Alle harten Fakten stehen hier, damit die Seite konsistent bleibt und
  * Nina / die WFL Werte an EINER Stelle ändern kann.
  *
- * Quellen: wfl.de/de/gewerbegebiet_grabau (Stand Mai 2026),
+ * Quellen: wfl.de/de/gewerbegebiet_grabau (Stand August 2026),
  * B-Plan Nr. 4 „Auf'n Ruhm", WFL-Standortdaten.
  */
 
@@ -52,6 +52,21 @@ export const CONTACT = {
   photo: "/img/nina-warncke.jpg",
 } as const;
 
+/**
+ * Flächenangaben aus der WFL-Übersicht (wfl.de, Stand August 2026).
+ * Einzige Quelle für diese Zahlen: Hero, Kennzahlen, Faktentabelle, FAQ,
+ * Metadaten und JSON-LD lesen alle von hier.
+ */
+export const FLAECHEN = {
+  gebiet: 110000,
+  verfuegbar: 70380,
+  kleinste: 1800,
+  groesste: 18600,
+} as const;
+
+/** Quadratmeter im deutschen Format, z. B. „18.600 m²“ */
+export const m2 = (wert: number) => `${wert.toLocaleString("de-DE")} m²`;
+
 /** Kernaussagen für die Vertrauensleiste unter dem Hero. */
 export const HERO_PROOF = [
   "Voll erschlossen",
@@ -73,8 +88,8 @@ export interface Stat {
 export const STATS: Stat[] = [
   { value: 40, suffix: " km", label: "bis Hamburg", sub: "Hafen · Flughafen · Fachkräfte" },
   { value: 7, suffix: " km", label: "zur A24", sub: "Auffahrt Talkau, Richtung Hamburg" },
-  { value: 70380, suffix: " m²", label: "verfügbare Fläche", sub: "auf 11 Hektar Gewerbepark" },
-  { value: 1800, prefix: "ab ", suffix: " m²", label: "Grundstücksgröße", sub: "flexibel bis 18.600 m²" },
+  { value: FLAECHEN.verfuegbar, suffix: " m²", label: "verfügbare Fläche", sub: `auf ${FLAECHEN.gebiet / 10000} Hektar Gewerbepark` },
+  { value: FLAECHEN.kleinste, prefix: "ab ", suffix: " m²", label: "Grundstücksgröße", sub: `flexibel bis ${m2(FLAECHEN.groesste)}` },
 ];
 
 /** Verkaufsargumente in Kurzform (Problem → Lösung Abschnitt). */
@@ -89,7 +104,7 @@ export const SOLUTION_POINTS = [
   },
   {
     title: "Platz, der mitwächst",
-    body: "Grundstücke von 1.800 bis 18.600 m², nach Bedarf parzellierbar. Ob kompakter Neubau oder großes Werk mit Reserveflächen: Grabau passt sich Ihrem Vorhaben an.",
+    body: `Grundstücke von ${m2(FLAECHEN.kleinste)} bis ${m2(FLAECHEN.groesste)}, nach Bedarf parzellierbar. Ob kompakter Neubau oder großes Werk mit Reserveflächen: Grabau passt sich Ihrem Vorhaben an.`,
   },
   {
     title: "Ein Ansprechpartner statt Behördendschungel",
@@ -106,7 +121,7 @@ export interface DistanceItem {
 
 export const DISTANCES: DistanceItem[] = [
   { place: "B207", detail: "Bundesstraße", value: "direkt" },
-  { place: "A24 Talkau", detail: "Autobahn Hamburg–Berlin", value: "7,0 km" },
+  { place: "A24 Talkau", detail: "Autobahn nach Hamburg und Berlin", value: "7,0 km" },
   { place: "Schwarzenbek", detail: "Stadt & Bahnhof", value: "2,7 km" },
   { place: "Hamburg", detail: "Metropolregion", value: "≈ 40 km" },
   { place: "Flughafen Hamburg", detail: "internationale Anbindung", value: "41 km" },
@@ -115,7 +130,7 @@ export const DISTANCES: DistanceItem[] = [
   { place: "Bushaltestelle", detail: "ÖPNV vor der Tür", value: "0,2 km" },
 ];
 
-/** Grundstücke aus dem offiziellen Standortplan (Stand Mai 2026).
+/** Grundstücke aus dem offiziellen Standortplan (Stand August 2026).
  *  x / y = Position in Prozent auf dem Standortplan-Bild (für die Pins). */
 export type PlotStatus = "verfuegbar" | "reserviert" | "verkauft";
 
@@ -138,22 +153,23 @@ export const PLOTS: Plot[] = [
   { id: "7", label: "Nr. 7", size: 4540, status: "verfuegbar", x: 56.5, y: 21 },
   { id: "8", label: "Nr. 8", size: 11200, status: "verfuegbar", x: 61.5, y: 35 },
   { id: "9", label: "Nr. 9", size: 12500, status: "verfuegbar", x: 66, y: 49 },
-  { id: "10", label: "Nr. 10", size: 7300, status: "verfuegbar", x: 61, y: 58 },
-  { id: "11", label: "Nr. 11", size: 12000, status: "reserviert", x: 54, y: 65 },
+  { id: "10", label: "Nr. 10", size: 7300, status: "reserviert", x: 61, y: 58 },
+  { id: "11", label: "Nr. 11", size: 12000, status: "verfuegbar", x: 54, y: 65 },
   { id: "12a", label: "Nr. 12a", size: 2000, status: "verfuegbar", x: 49, y: 57 },
   { id: "12b", label: "Nr. 12b", size: 2600, status: "verfuegbar", x: 50.5, y: 62 },
-  { id: "13", label: "Nr. 13", size: 3800, status: "verfuegbar", x: 53, y: 54 },
+  { id: "13", label: "Nr. 13", size: 3800, status: "reserviert", x: 53, y: 54 },
   { id: "14a", label: "Nr. 14a", size: 1800, status: "reserviert", x: 54, y: 46 },
   { id: "14b", label: "Nr. 14b", size: null, status: "verkauft", x: 56, y: 50 },
 ];
 
 export const PLOT_STATUS_META: Record<
   PlotStatus,
-  { label: string; color: string; dot: string }
+  { label: string; color: string; dot: string; schrift: string }
 > = {
-  verfuegbar: { label: "Verfügbar", color: "text-avail", dot: "var(--color-avail)" },
-  reserviert: { label: "Reserviert", color: "text-reserved", dot: "var(--color-reserved)" },
-  verkauft: { label: "Verkauft", color: "text-sold", dot: "var(--color-sold)" },
+  // dot: Pins und Punkte, schrift: Text und Nummern-Kreise (dunkler, lesbar)
+  verfuegbar: { label: "Verfügbar", color: "text-avail-text", dot: "var(--color-avail)", schrift: "var(--color-avail-text)" },
+  reserviert: { label: "Reserviert", color: "text-reserved-text", dot: "var(--color-reserved)", schrift: "var(--color-reserved-text)" },
+  verkauft: { label: "Verkauft", color: "text-sold-text", dot: "var(--color-sold)", schrift: "var(--color-sold-text)" },
 };
 
 /** Passende Branchen (B-Plan-konform). Icon-Name = lucide-react. */
@@ -162,7 +178,7 @@ export const INDUSTRIES = [
   { icon: "CircuitBoard", title: "Elektronik & Medizintechnik", wz: "WZ 26 · 27", desc: "Elektronik, Optik, Mess- und Medizintechnik." },
   { icon: "Car", title: "Fahrzeug- & Teilebau", wz: "WZ 29 · 30", desc: "Herstellung von Fahrzeugen und Komponenten." },
   { icon: "Armchair", title: "Möbel & Holz", wz: "WZ 31", desc: "Möbelherstellung und Holzverarbeitung." },
-  { icon: "HardHat", title: "Bau, Ausbau & Handwerk", wz: "WZ 41–43", desc: "Hoch- und Tiefbau, Bauinstallation, Handwerk." },
+  { icon: "HardHat", title: "Bau, Ausbau & Handwerk", wz: "WZ 41 · 42 · 43", desc: "Hoch- und Tiefbau, Bauinstallation, Handwerk." },
   { icon: "Wrench", title: "Reparatur & Installation", wz: "WZ 33", desc: "Instandhaltung und Montage von Anlagen." },
   { icon: "Boxes", title: "Glas, Keramik & Beton", wz: "WZ 23", desc: "Herstellung von Baustoffen und Erzeugnissen." },
   { icon: "PackageOpen", title: "Produktion & Manufaktur", wz: "WZ 32", desc: "Sonstige Warenherstellung und Manufaktur." },
@@ -178,9 +194,9 @@ export const PROCESS = [
 
 /** Harte Standortdaten (Fakten-Tabelle). */
 export const FACTS: { label: string; value: string }[] = [
-  { label: "Gebietsgröße", value: "110.000 m²" },
-  { label: "Verfügbare Fläche", value: "70.380 m²" },
-  { label: "Grundstücke", value: "1.800 – 18.600 m²" },
+  { label: "Gebietsgröße", value: m2(FLAECHEN.gebiet) },
+  { label: "Verfügbare Fläche", value: m2(FLAECHEN.verfuegbar) },
+  { label: "Grundstücke", value: `${m2(FLAECHEN.kleinste)} bis ${m2(FLAECHEN.groesste)}` },
   { label: "Parzellierung", value: "nach Bedarf möglich" },
   { label: "Erschließung", value: "vollständig erschlossen" },
   { label: "Verfügbar ab", value: "sofort" },
@@ -200,7 +216,7 @@ export const FAQS = [
   },
   {
     q: "Kann ich Grundstücke zusammenlegen oder teilen?",
-    a: "Ja. Die Parzellierung ist nach Bedarf teilweise möglich. So entstehen Flächen von 1.800 bis rund 18.600 m². Sagen Sie uns einfach, wie viel Platz Sie brauchen.",
+    a: `Ja. Die Parzellierung ist nach Bedarf teilweise möglich. So entstehen Flächen von ${m2(FLAECHEN.kleinste)} bis rund ${m2(FLAECHEN.groesste)}. Sagen Sie uns einfach, wie viel Platz Sie brauchen.`,
   },
   {
     q: "Welche Betriebe dürfen sich ansiedeln?",
@@ -212,7 +228,7 @@ export const FAQS = [
   },
   {
     q: "Wie gut ist die Anbindung an Hamburg?",
-    a: "Sehr gut. Direkt an der B207, nur 7 km zur A24 (Hamburg–Berlin) und rund 40 km bis Hamburg mit Hafen, Flughafen und den Fachkräften der Metropolregion.",
+    a: "Sehr gut. Direkt an der B207, nur 7 km zur A24 zwischen Hamburg und Berlin und rund 40 km bis Hamburg mit Hafen, Flughafen und den Fachkräften der Metropolregion.",
   },
   {
     q: "Welche Rolle spielt der Fehmarnbelttunnel?",

@@ -52,7 +52,7 @@
   --color-paper: #faf8f6;
   --color-paper-2: #f4ece1;
   --color-ink: #241a1b;
-  --color-muted: #7a6e6f;
+  --color-muted: #6e6263; /* 5:1 auf paper-2, vorher 4,2:1 */
   --color-hair: #e7ddd6;
   --color-hair-strong: #d8ccc3;
 
@@ -66,10 +66,14 @@
   --color-night: #1a1113;
   --color-night-2: #251719;
 
-  /* Status Standortplan */
+  /* Status Standortplan: Punkte und Pins */
   --color-avail: #4f8a5b;
   --color-reserved: #c0912f;
   --color-sold: #a4938d;
+  /* Status als Schrift: dunkler, damit Text auf Weiß mindestens 5:1 hat */
+  --color-avail-text: #3d6f48;
+  --color-reserved-text: #8a6417;
+  --color-sold-text: #6f625d;
 
   --font-display: "Museo Sans Rounded", "Fira Sans", Helvetica, Arial, sans-serif;
   --font-body: "Fira Sans", "Helvetica Neue", Helvetica, Arial, sans-serif;

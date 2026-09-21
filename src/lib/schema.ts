@@ -11,21 +11,23 @@ import {
   CONTACT,
   FACTS,
   FAQS,
+  FLAECHEN,
   PLOTS,
   SITE_URL,
   STANDORT,
+  m2,
 } from "@/config/site";
 
-/** Verfügbare Grundstücke und ihre Flächen-Spanne aus den echten Daten. */
+/**
+ * Anzahl freier Grundstücke aus dem Plan, Flächen-Spanne aus der
+ * WFL-Übersicht. Dieselbe Spanne steht im sichtbaren Text, sonst sähe
+ * Google in der Auszeichnung andere Zahlen als auf der Seite.
+ */
 function verfuegbarkeit() {
-  const frei = PLOTS.filter((p) => p.status === "verfuegbar");
-  const groessen = frei
-    .map((p) => p.size)
-    .filter((s): s is number => typeof s === "number");
   return {
-    anzahl: frei.length,
-    min: groessen.length ? Math.min(...groessen) : null,
-    max: groessen.length ? Math.max(...groessen) : null,
+    anzahl: PLOTS.filter((p) => p.status === "verfuegbar").length,
+    min: FLAECHEN.kleinste,
+    max: FLAECHEN.groesste,
   };
 }
 
@@ -90,10 +92,7 @@ function angebot() {
     "@type": "Offer",
     "@id": `${SITE_URL}/#angebot`,
     name: "Gewerbegrundstücke im Gewerbepark Grabauer Ruhm",
-    description:
-      min && max
-        ? `${anzahl} sofort verfügbare, voll erschlossene Gewerbegrundstücke von ${min.toLocaleString("de-DE")} bis ${max.toLocaleString("de-DE")} m², nach Bedarf parzellierbar.`
-        : `${anzahl} sofort verfügbare, voll erschlossene Gewerbegrundstücke, nach Bedarf parzellierbar.`,
+    description: `${anzahl} sofort verfügbare, voll erschlossene Gewerbegrundstücke von ${m2(min)} bis ${m2(max)}, nach Bedarf parzellierbar.`,
     availability: "https://schema.org/InStock",
     businessFunction: "https://purl.org/goodrelations/v1#Sell",
     /* Preis bewusst ohne Betrag: der Quadratmeterpreis wird im

@@ -17,6 +17,16 @@ export default function Header() {
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
+  // Escape schließt das Mobile-Menü (Tastaturbedienung)
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpen(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [open]);
+
   // Solide Darstellung, sobald gescrollt ODER Mobile-Menü offen
   const solid = scrolled || open;
 
@@ -94,14 +104,19 @@ export default function Header() {
               solid ? "text-ink hover:bg-paper-2" : "text-paper hover:bg-white/10",
             )}
             aria-label={open ? "Menü schließen" : "Menü öffnen"}
+            aria-expanded={open}
+            aria-controls="mobil-menue"
           >
             {open ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
           </button>
         </div>
       </div>
 
-      {/* Mobile-Menü */}
+      {/* Mobile-Menü (inert, solange zu: sonst landet der Tab-Fokus in
+          unsichtbaren Links) */}
       <div
+        id="mobil-menue"
+        inert={!open}
         className={cn(
           "overflow-hidden border-t border-hair bg-paper transition-[max-height] duration-500 lg:hidden",
           open ? "max-h-96" : "max-h-0",

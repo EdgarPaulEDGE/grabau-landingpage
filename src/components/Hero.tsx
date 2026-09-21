@@ -2,7 +2,7 @@ import Image from "next/image";
 import { Check, ArrowRight, MapPin } from "lucide-react";
 import Reveal from "./ui/Reveal";
 import HeroAerialCanvas from "./HeroAerialCanvas";
-import { HERO_PROOF, PLOTS, PLOT_STATUS_META } from "@/config/site";
+import { FLAECHEN, HERO_PROOF, PLOTS, PLOT_STATUS_META, m2 } from "@/config/site";
 
 export default function Hero() {
   const avail = PLOTS.filter((p) => p.status === "verfuegbar").length;
@@ -63,8 +63,9 @@ export default function Hero() {
             <Reveal delay={0.2}>
               <p className="mt-7 max-w-xl text-lg leading-relaxed text-paper/85 md:text-xl">
                 Voll erschlossene Gewerbegrundstücke direkt an der B207, 7 km zur
-                A24 und 40 Minuten vor Hamburg. Flexibel parzellierbar von 1.800
-                bis 18.600 m². Bebauungsplan rechtskräftig, verfügbar ab sofort.
+                A24 und 40 Minuten vor Hamburg. Flexibel parzellierbar von{" "}
+                {m2(FLAECHEN.kleinste)} bis {m2(FLAECHEN.groesste)}. Bebauungsplan
+                rechtskräftig, verfügbar ab sofort.
               </p>
             </Reveal>
 

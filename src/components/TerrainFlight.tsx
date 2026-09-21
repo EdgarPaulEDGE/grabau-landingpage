@@ -98,7 +98,7 @@ export default function TerrainFlight() {
       });
 
       if (counterRef.current) {
-        counterRef.current.textContent = `${String(Math.min(Math.floor(p * 4) + 1, 4)).padStart(2, "0")} / 04`;
+        counterRef.current.textContent = `${Math.min(Math.floor(p * 4) + 1, 4)} / 4`;
       }
     };
     update();
@@ -142,13 +142,14 @@ export default function TerrainFlight() {
           <div className="mx-auto flex max-w-7xl items-center justify-between px-5 md:px-8">
             <div className="flex items-center gap-3">
               <span className="h-px w-8 bg-gold" />
-              <span className="eyebrow text-gold">Der Anflug</span>
+              <h2 className="eyebrow text-gold">Der Anflug</h2>
             </div>
             <span
               ref={counterRef}
-              className="numeral text-sm font-bold tracking-[0.2em] text-paper/50"
+              aria-hidden="true"
+              className="numeral text-sm font-bold tracking-[0.2em] text-paper/60"
             >
-              01 / 04
+              1 / 4
             </span>
           </div>
         </div>
@@ -188,7 +189,7 @@ export default function TerrainFlight() {
         </div>
 
         {/* Pflicht-Attribution der offenen Geodaten */}
-        <p className="absolute bottom-3 right-4 z-[3] text-[10px] leading-tight text-paper/40">
+        <p className="absolute bottom-3 right-4 z-[3] text-[10px] leading-tight text-paper/60">
           Gelände: © ESA Copernicus DEM · DGM1 © GeoBasis-DE/LVermGeo SH (CC BY 4.0) ·
           © OpenStreetMap-Mitwirkende
         </p>

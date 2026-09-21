@@ -66,7 +66,7 @@ export default function Footer() {
                   <a
                     href={l.href}
                     target="_blank"
-                    rel="noopener"
+                    rel="noopener noreferrer"
                     className="text-paper/75 transition-colors hover:text-gold"
                   >
                     {l.label}
@@ -77,7 +77,7 @@ export default function Footer() {
           </div>
         </div>
 
-        <div className="flex justify-center pt-6 text-xs text-paper/45">
+        <div className="flex justify-center pt-6 text-xs text-paper/60">
           <p>© {new Date().getFullYear()} Wirtschaftsförderung Herzogtum Lauenburg</p>
         </div>
       </div>

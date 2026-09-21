@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -18,16 +18,21 @@ import {
 import { CONTACT } from "@/config/site";
 import { cn } from "@/lib/utils";
 
+/** Statische Vorschau ohne Server: Anfrage läuft über das E-Mail-Programm */
+const OHNE_SERVER = process.env.NEXT_PUBLIC_OHNE_SERVER === "1";
+
 const schema = z.object({
-  name: z.string().min(2, "Bitte Ihren Namen angeben."),
-  company: z.string().min(2, "Bitte Ihr Unternehmen angeben."),
+  name: z.string().trim().min(2, "Bitte Ihren Namen angeben.").max(120),
+  company: z.string().trim().min(2, "Bitte Ihr Unternehmen angeben.").max(160),
   email: z
     .string()
     .min(1, "Bitte Ihre E-Mail angeben.")
     .refine((v) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v), "Bitte eine gültige E-Mail angeben."),
-  phone: z.string().optional(),
+  phone: z.string().max(40).optional(),
   plotSize: z.string().optional(),
-  message: z.string().optional(),
+  message: z.string().max(4000, "Bitte etwas kürzer fassen.").optional(),
+  // Honeypot: für Menschen unsichtbar, Bots füllen es aus
+  website: z.string().optional(),
   consent: z.boolean().refine((v) => v === true, "Bitte den Datenschutzhinweis bestätigen."),
 });
 
@@ -36,13 +41,15 @@ type FormValues = z.infer<typeof schema>;
 const PLOT_SIZES = [
   "Noch offen",
   "Unter 3.000 m²",
-  "3.000 – 6.000 m²",
-  "6.000 – 10.000 m²",
+  "3.000 bis 6.000 m²",
+  "6.000 bis 10.000 m²",
   "Über 10.000 m²",
 ];
 
 export default function LeadForm() {
-  const [status, setStatus] = useState<"idle" | "sending" | "done" | "error">("idle");
+  const [status, setStatus] = useState<"idle" | "sending" | "done" | "mail" | "error">("idle");
+  // Sperre gegen Doppelklick: der State greift erst nach dem nächsten Render
+  const sendetRef = useRef(false);
 
   const {
     register,
@@ -69,6 +76,13 @@ export default function LeadForm() {
   }, [setValue]);
 
   async function onSubmit(values: FormValues) {
+    if (sendetRef.current) return;
+    if (OHNE_SERVER) {
+      window.location.href = mailtoFallback();
+      setStatus("mail");
+      return;
+    }
+    sendetRef.current = true;
     setStatus("sending");
     try {
       const res = await fetch("/api/lead", {
@@ -80,6 +94,8 @@ export default function LeadForm() {
       setStatus("done");
     } catch {
       setStatus("error");
+    } finally {
+      sendetRef.current = false;
     }
   }
 
@@ -175,14 +191,23 @@ export default function LeadForm() {
 
           {/* Formular / Erfolg */}
           <div className="bg-paper p-8 md:p-10">
-            {status === "done" ? (
-              <SuccessPanel />
+            {status === "done" || status === "mail" ? (
+              <SuccessPanel perMail={status === "mail"} mailto={mailtoFallback()} />
             ) : (
-              <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-4">
+              <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-4" noValidate>
+                {/* Honeypot, aus dem Sichtfeld und aus der Tab-Reihenfolge */}
+                <div className="absolute -left-[9999px] h-px w-px overflow-hidden" aria-hidden="true">
+                  <label>
+                    Website
+                    <input {...register("website")} tabIndex={-1} autoComplete="off" />
+                  </label>
+                </div>
                 <div className="grid gap-4 sm:grid-cols-2">
                   <Field label="Name" error={errors.name?.message}>
                     <input
                       {...register("name")}
+                      autoComplete="name"
+                      aria-invalid={!!errors.name}
                       className={inputCls(!!errors.name)}
                       placeholder="Max Mustermann"
                     />
@@ -190,6 +215,8 @@ export default function LeadForm() {
                   <Field label="Unternehmen" error={errors.company?.message}>
                     <input
                       {...register("company")}
+                      autoComplete="organization"
+                      aria-invalid={!!errors.company}
                       className={inputCls(!!errors.company)}
                       placeholder="Muster GmbH"
                     />
@@ -201,6 +228,8 @@ export default function LeadForm() {
                     <input
                       {...register("email")}
                       type="email"
+                      autoComplete="email"
+                      aria-invalid={!!errors.email}
                       className={inputCls(!!errors.email)}
                       placeholder="name@firma.de"
                     />
@@ -208,6 +237,8 @@ export default function LeadForm() {
                   <Field label="Telefon (optional)">
                     <input
                       {...register("phone")}
+                      type="tel"
+                      autoComplete="tel"
                       className={inputCls(false)}
                       placeholder="0401234567"
                     />
@@ -237,12 +268,13 @@ export default function LeadForm() {
                   <input
                     type="checkbox"
                     {...register("consent")}
+                    aria-invalid={!!errors.consent}
                     className="mt-0.5 h-5 w-5 shrink-0 accent-[var(--color-wine)]"
                   />
                   <span>
                     Ich bin einverstanden, dass die WFL meine Angaben zur
                     Bearbeitung meiner Anfrage verwendet.{" "}
-                    <a href="https://wfl.de/de/datenschutz" target="_blank" rel="noopener" className="underline hover:text-wine">
+                    <a href="https://wfl.de/de/datenschutz" target="_blank" rel="noopener noreferrer" className="underline hover:text-wine">
                       Datenschutz
                     </a>
                   </span>
@@ -287,21 +319,41 @@ export default function LeadForm() {
   );
 }
 
-function SuccessPanel() {
+function SuccessPanel({ perMail, mailto }: { perMail: boolean; mailto: string }) {
   return (
-    <div className="flex h-full flex-col items-center justify-center py-6 text-center">
-      <span className="grid h-16 w-16 place-items-center rounded-full bg-avail/15 text-avail">
-        <Check className="h-8 w-8" strokeWidth={2.5} />
+    <div
+      className="flex h-full flex-col items-center justify-center py-6 text-center"
+      role="status"
+    >
+      <span className="grid h-16 w-16 place-items-center rounded-full bg-avail/15 text-avail-text">
+        {perMail ? (
+          <Mail className="h-8 w-8" strokeWidth={2.25} />
+        ) : (
+          <Check className="h-8 w-8" strokeWidth={2.5} />
+        )}
       </span>
-      <h3 className="mt-6 text-2xl font-bold text-ink">Vielen Dank!</h3>
-      <p className="mt-3 max-w-sm leading-relaxed text-muted">
-        Ihre Anfrage ist bei der WFL eingegangen. Wir melden uns
-        schnellstmöglich mit dem vollständigen Exposé.
-      </p>
+      <h3 className="mt-6 text-2xl font-bold text-ink">
+        {perMail ? "Fast geschafft" : "Vielen Dank!"}
+      </h3>
+      {perMail ? (
+        <p className="mt-3 max-w-sm leading-relaxed text-muted">
+          Ihr E-Mail-Programm öffnet sich mit der fertigen Anfrage an die WFL.
+          Sie müssen sie nur noch absenden. Falls sich nichts öffnet:{" "}
+          <a href={mailto} className="font-semibold text-wine underline">
+            Anfrage per E-Mail senden
+          </a>
+          .
+        </p>
+      ) : (
+        <p className="mt-3 max-w-sm leading-relaxed text-muted">
+          Ihre Anfrage ist bei der WFL eingegangen. Wir melden uns
+          schnellstmöglich mit dem vollständigen Exposé.
+        </p>
+      )}
       <a
         href="/expose/bplan-grabau-nr4.pdf"
         target="_blank"
-        rel="noopener"
+        rel="noopener noreferrer"
         className="mt-8 inline-flex items-center gap-2 rounded-full bg-wine px-6 py-3.5 text-sm font-semibold text-paper transition-all hover:-translate-y-0.5 hover:bg-wine-dark"
       >
         <FileDown className="h-4 w-4" />

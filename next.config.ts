@@ -7,6 +7,9 @@ const istExport = process.env.STATIC_EXPORT === "1";
 
 const nextConfig: NextConfig = {
   ...(istExport ? { output: "export" as const } : {}),
+  // Sagt dem Formular, ob es einen Server gibt. Ohne Server öffnet es
+  // direkt das E-Mail-Programm, statt eine Anfrage ins Leere zu schicken.
+  env: { NEXT_PUBLIC_OHNE_SERVER: istExport ? "1" : "" },
   images: {
     // Moderne Formate für kleinere Dateien und schnelleres Laden
     formats: ["image/avif", "image/webp"],
